@@ -6,7 +6,8 @@ Authors@R:
 Description: estimation of categorical coefficient models (Gao and Pesaran, 2022).
 Imports:
     nloptr,
-    Matrix
+    Matrix,
+    abind
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
