@@ -1,41 +1,41 @@
-generate_data_hetero_cov <- function (n, # sample size
-                                      a, # intercept
-                                      b,
-                                      p,
-                                      gamma, # deterministic coefficient
-                                      chisq_df = 2) {
-
-    # K = 2
-
-    group_id <- as.integer(runif(n) > p) + 1
-    b0 <- b[group_id]
-
-    x <- (rchisq(n, df = chisq_df) - chisq_df) / sqrt(2 * chisq_df)
-    z_1 <- x + rnorm(n)
-    z_2 <- z_1 + rnorm(n)
-    z <- cbind(z_1, z_2)
-    sigma_i <- 0.5 * (1 + rchisq(n, df = 1))
-    e <- rnorm(n, mean = 0, sd = sqrt(sigma_i))
-
-    y <- a + x * b0 + as.numeric(z %*% gamma) + e
-
-    return(cbind(y, x, z))
-}
-
-set.seed(200)
-n = 1000
-a = 0.25
-b = c(1, 2)
-p = 0.5
-gamma = c(1, 1)
-data = generate_data_hetero_cov(n, a, b, p, gamma)
-y_true = data[, 1]
-x = data[, 2]
-z = data[, -c(1, 2)]
-
-coef_hat_ols <- lsfit(cbind(x,z), y_true)$coef
-gamma_hat <- coef_hat_ols[-(1:2)]
-y <- y_true - as.numeric(z %*% as.matrix(gamma_hat))
+# generate_data_hetero_cov <- function (n, # sample size
+#                                       a, # intercept
+#                                       b,
+#                                       p,
+#                                       gamma, # deterministic coefficient
+#                                       chisq_df = 2) {
+#
+#     # K = 2
+#
+#     group_id <- as.integer(runif(n) > p) + 1
+#     b0 <- b[group_id]
+#
+#     x <- (rchisq(n, df = chisq_df) - chisq_df) / sqrt(2 * chisq_df)
+#     z_1 <- x + rnorm(n)
+#     z_2 <- z_1 + rnorm(n)
+#     z <- cbind(z_1, z_2)
+#     sigma_i <- 0.5 * (1 + rchisq(n, df = 1))
+#     e <- rnorm(n, mean = 0, sd = sqrt(sigma_i))
+#
+#     y <- a + x * b0 + as.numeric(z %*% gamma) + e
+#
+#     return(cbind(y, x, z))
+# }
+#
+# set.seed(200)
+# n = 1000
+# a = 0.25
+# b = c(1, 2)
+# p = 0.5
+# gamma = c(1, 1)
+# data = generate_data_hetero_cov(n, a, b, p, gamma)
+# y_true = data[, 1]
+# x = data[, 2]
+# z = data[, -c(1, 2)]
+#
+# coef_hat_ols <- lsfit(cbind(x,z), y_true)$coef
+# gamma_hat <- coef_hat_ols[-(1:2)]
+# y <- y_true - as.numeric(z %*% as.matrix(gamma_hat))
 
 
 # setwd("C:/Users/zhang/Dropbox/Research/Categorical_Coef_Model/Numerical")
