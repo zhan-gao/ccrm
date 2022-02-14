@@ -11,8 +11,8 @@
 #' @export
 #'
 
-ccrm_est_hetero <- function(x, y, s_max) {
-    theta_temp <- init_est_hetero(x, y, s_max)
+ccrm_est_hetero <- function(x, y, s_max, method = "md") {
+    theta_temp <- init_est_hetero(x, y, s_max, method)
     p <- theta_temp[2]
     b_L <- theta_temp[3]
     b_H <- theta_temp[4]
@@ -338,10 +338,15 @@ moment_est_md <- function(x, y, s_max) {
 
 init_est_hetero <- function(x,
                             y,
-                            s_max) {
+                            s_max,
+                            method = "md") {
 
+    if (method == "md") {
+        moment_est_result_parameter <- moment_est_md(x, y, s_max)
+    } else {
+        moment_est_result_parameter <- moment_est_direct(x, y)
+    }
 
-    moment_est_result_parameter <- moment_est_md(x, y, s_max)
 
     # first_step_est: estimated parameters only
     # a, b1, b2, b3
