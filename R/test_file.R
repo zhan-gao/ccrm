@@ -22,7 +22,8 @@ generate_data_hetero_cov <- function (n, # sample size
     return(cbind(y, x, z))
 }
 
-n = 10000
+set.seed(200)
+n = 1000
 a = 0.25
 b = c(1, 2)
 p = 0.5

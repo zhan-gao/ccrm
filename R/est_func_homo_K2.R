@@ -4,7 +4,7 @@
 #' @param y dependent variable (N-by-1)
 #' @param theta_init initial value for distribution parameters
 #' @param s_1
-#' @param s_2 
+#' @param s_2
 #' @param s_3
 #'
 #' @return A list contains estimated coefficients and inferential statistics
@@ -12,8 +12,8 @@
 #' \item{wald_stat}{Wald statistic}
 #' \item{t_stat}{t statistic}
 #' \item{V_theta}{variance}
-#' 
-#' @export 
+#'
+#' @export
 ccrm_est <- function(x,
                      y,
                      theta_init = NULL,
@@ -173,7 +173,7 @@ ccrm_est <- function(x,
         V_theta = V_theta
     )
 }
- 
+
 # ----------First step estimation by solving equations----------
 moment_est <- function(x, y) {
     n <- length(x)
@@ -335,20 +335,6 @@ moment_est_gmm <- function(x, y, s_1 = 3, s_2 = 2, s_3 = 1) {
 }
 
 # ----------Second step estimation----------
-initial_value_gap <- function(Eb_1, Eb_2) {
-
-    # Using the estimated variance
-    # If it's a valid estimate, return the s.d.
-    # If not, return a random number between 0 and 1
-
-    var_hat <- Eb_2 - Eb_1^2
-    if (var_hat > 1e-4) {
-        return(sqrt(var_hat))
-    } else {
-        return(runif(1))
-    }
-}
-
 init_est <- function(x,
                      y,
                      s_1 = 3,
