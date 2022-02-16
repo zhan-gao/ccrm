@@ -33,6 +33,16 @@ ccrm_est <- function(x,
         theta_init <- theta_temp[1:5]
     }
 
+    # dim: max{s_1 + 2, s_2 + 3, s_3 + 4}
+    x_s_mat <- sapply(0:s_max, function(i) {
+        x^i
+    })
+    Ex_s_mat <- x_s_mat
+    Ey_1x_s_mat <- y * x_s_mat
+    Ey_2x_s_mat <- y^2 * x_s_mat
+    Ey_3x_s_mat <- y^3 * x_s_mat
+
+    Ex_s <- colMeans(x_s_mat)
 
     # return moment matrix
     h_moment_mat_fn <- function(theta) {
@@ -46,15 +56,6 @@ ccrm_est <- function(x,
         Eb_1 <- p * b_L + (1 - p) * b_H
         Eb_2 <- p * b_L^2 + (1 - p) * b_H^2
         Eb_3 <- p * b_L^3 + (1 - p) * b_H^3
-
-        # dim: max{s_1 + 2, s_2 + 3, s_3 + 4}
-        x_s_mat <- sapply(0:s_max, function(i) {
-            x^i
-        })
-        Ex_s_mat <- x_s_mat
-        Ey_1x_s_mat <- y * x_s_mat
-        Ey_2x_s_mat <- y^2 * x_s_mat
-        Ey_3x_s_mat <- y^3 * x_s_mat
 
         h_1 <-
             alpha * Ex_s_mat[, 1:(s_1 + 1)] + Eb_1 * Ex_s_mat[, 2:(s_1 + 2)] - Ey_1x_s_mat[, 1:(s_1 + 1)]
@@ -79,12 +80,6 @@ ccrm_est <- function(x,
         Eb_1 <- p * b_L + (1 - p) * b_H
         Eb_2 <- p * b_L^2 + (1 - p) * b_H^2
         Eb_3 <- p * b_L^3 + (1 - p) * b_H^3
-
-        # dim: max(s_1 + 2, s_2 + 3, s_3 + 4)
-        x_s_mat <- sapply(0:s_max, function(i) {
-            x^i
-        })
-        Ex_s <- colMeans(x_s_mat)
 
         rbind(
             cbind(Ex_s[1:(s_1 + 1)], 0, Ex_s[2:(s_1 + 2)] * (b_L - b_H), Ex_s[2:(s_1 + 2)] * p, Ex_s[2:(s_1 + 2)] * (1 - p)),
@@ -220,6 +215,17 @@ moment_est_gmm <- function(x, y, s_1 = 3, s_2 = 2, s_3 = 1) {
     n <- length(x)
     s_max <- max(c(s_1 + 1, s_2 + 2, s_3 + 3))
 
+    # dim: max(s_1 + 2, s_2 + 3, s_3 + 4)
+    x_s_mat <- sapply(0:s_max, function(i) {
+        x^i
+    })
+    Ex_s_mat <- x_s_mat
+    Ey_1x_s_mat <- y * x_s_mat
+    Ey_2x_s_mat <- y^2 * x_s_mat
+    Ey_3x_s_mat <- y^3 * x_s_mat
+
+    Ex_s <- colMeans(x_s_mat)
+
     # return moment matrix
     h_moment_mat_fn <- function(theta) {
         # gamma = (alpha, sigma^2, Eb_1, Eb_2, Eb_3)
@@ -228,15 +234,6 @@ moment_est_gmm <- function(x, y, s_1 = 3, s_2 = 2, s_3 = 1) {
         Eb_1 <- theta[3]
         Eb_2 <- theta[4]
         Eb_3 <- theta[5]
-
-        # dim: max(s_1 + 2, s_2 + 3, s_3 + 4)
-        x_s_mat <- sapply(0:s_max, function(i) {
-            x^i
-        })
-        Ex_s_mat <- x_s_mat
-        Ey_1x_s_mat <- y * x_s_mat
-        Ey_2x_s_mat <- y^2 * x_s_mat
-        Ey_3x_s_mat <- y^3 * x_s_mat
 
         h_1 <-
             alpha * Ex_s_mat[, 1:(s_1 + 1)] + Eb_1 * Ex_s_mat[, 2:(s_1 + 2)] - Ey_1x_s_mat[, 1:(s_1 + 1)]
@@ -258,11 +255,6 @@ moment_est_gmm <- function(x, y, s_1 = 3, s_2 = 2, s_3 = 1) {
         Eb_2 <- theta[4]
         Eb_3 <- theta[5]
 
-        # dim: max(s_1 + 2, s_2 + 3, s_3 + 4)
-        x_s_mat <- sapply(0:s_max, function(i) {
-            x^i
-        })
-        Ex_s <- colMeans(x_s_mat)
 
         rbind(
             cbind(Ex_s[1:(s_1 + 1)], 0, Ex_s[2:(s_1 + 2)], 0, 0),
