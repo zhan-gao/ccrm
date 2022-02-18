@@ -2,13 +2,15 @@
 #'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-1)
+#' @param z control varibles (N-by-p)
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
 #'
 #' @return A list contains estimated coefficients and inferential statistics
-#' \item{theta_hat}{Estimated coefficient}
-#' \item{wald_stat}{Wald statistic}
-#' \item{t_stat}{t statistic}
+#' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
+#' \item{theta_m}{Estimated moments of beta_i}
+#' \item{theta_u}{Estimated moments of u_i}
+#' \item{gamma}{estimated coefficients of control varibles}
 #' \item{V_theta}{variance}
 #'
 #' @export
@@ -17,12 +19,9 @@
 
 ccrm_est_K2_sym <- function(x,
                             y,
+                            z,
                             theta_init = NULL,
                             s_max = 4) {
-
-
-    # theta_init: estimated parameters only
-    # alpha, sigma_2, pi, b_l, b_h
 
 
     n <- length(x)
@@ -30,8 +29,21 @@ ccrm_est_K2_sym <- function(x,
     s_2 <- s_max - 2
     s_3 <- s_max - 3
 
+    # OLS estimate and replace gamma by gamma_hat
+    if (!is.null(z)) {
+        coef_hat_ols <- lsfit(cbind(x,z), y)$coef
+        gamma_hat <- coef_hat_ols[-(1:2)]
+        y <- y - c(z %*% gamma_hat)
+    }
+
+    # The following estimation is on y_tilde = a + x_i b_i + u_i
+    # we don't replace a by a_hat because including the intercept
+    #   stabilizes the finite sample performance
+
+    # theta_init: estimated parameters only
+    # alpha, sigma_2, pi, b_l, b_h
     if (is.null(theta_init)) {
-        theta_temp <- init_est_b_sym(x, y, s_1, s_2, s_3)$theta
+        theta_temp <- init_est_b_sym(x, y, s_max)$theta
         theta_init <- theta_temp[1:5]
     }
 
@@ -163,10 +175,17 @@ ccrm_est_K2_sym <- function(x,
         t_stat <- theta_hat[c(4, 5)] / sqrt(diag(V_theta)[c(4, 5)] / n)
     }
 
+    if (!is.null(z)) {
+        gamma_hat <- c(theta_hat[1], gamma_hat)
+    } else {
+        gamma_hat <- theta_hat[1]
+    }
+
     list(
-        theta = c(theta_hat, Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
-        wald_stat = wald_stat,
-        t_stat = t_stat,
+        theta_b = theta_hat[3:5],
+        theta_m = c(Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
+        theta_u = theta_hat[2],
+        gamma = gamma_hat,
         V_theta = V_theta
     )
 }
@@ -210,6 +229,16 @@ moment_est_sym <- function(x, y) {
 }
 
 # ----------First step estimation GMM----------
+
+#' Estimation of moments of beta_i with symmetric error
+#'
+#' @param x
+#' @param y
+#' @param s_max
+#'
+#' @export
+#'
+#'
 moment_est_gmm_sym <- function(x, y, s_max = 4) {
 
     # with intercept, over-identification, GMM framework

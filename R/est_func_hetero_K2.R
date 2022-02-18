@@ -6,23 +6,40 @@
 #' @param theta_init initial value for distribution parameters
 #'
 #' @return A list contains estimated coefficients and inferential statistics
-#' \item{theta_hat}{Estimated coefficient: a, p, b_L, b_H, Eb1, Var_b}
+#' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
+#' \item{theta_m}{Estimated moments of beta_i}
+#' \item{theta_u}{Estimated moments of u_i}
+#' \item{gamma}{estimated coefficients of control varibles}
+#' \item{V_theta}{variance}
 #'
 #' @export
 #'
 
 ccrm_est_hetero <- function(x,
                             y,
+                            z,
                             s_max,
                             theta_init = NULL
                             ) {
 
-    # order of theta_init: a, p, b_L, b_H
+
 
     s1 <- s_max - 1
     s2 <- s_max - 2
     s3 <- s_max - 3
 
+    # OLS estimate and replace gamma by gamma_hat
+    if (!is.null(z)) {
+        coef_hat_ols <- lsfit(cbind(x,z), y)$coef
+        gamma_hat <- coef_hat_ols[-(1:2)]
+        y <- y - c(z %*% gamma_hat)
+    }
+
+    # The following estimation is on y_tilde = a + x_i b_i + u_i
+    # we don't replace a by a_hat because including the intercept
+    #   stabilizes the finite sample performance
+
+    # order of theta_init: a, p, b_L, b_H
     if (is.null(theta_init)) {
         theta_temp <- init_est_hetero(x, y, s_max)
         theta_init <- theta_temp[1:4]
@@ -156,8 +173,19 @@ ccrm_est_hetero <- function(x,
     Eb_2_hat <- p_hat * b_L_hat^2 + (1 - p_hat) * b_H_hat^2
     Eb_3_hat <- p_hat * b_L_hat^3 + (1 - p_hat) * b_H_hat^3
 
-    # a, p, b_L, b_H, Eb1, Var_b
-    c(theta_hat, Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2)
+    if (!is.null(z)) {
+        gamma_hat <- c(theta_hat[1], gamma_hat)
+    } else {
+        gamma_hat <- theta_hat[1]
+    }
+
+    list(
+        theta_b = theta_hat[2:4],
+        theta_m = c(Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
+        theta_u = NULL,
+        gamma = gamma_hat,
+        V_theta = NULL
+    )
 }
 
 # ----------First step estimation by solving equations----------

@@ -2,12 +2,14 @@
 #'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-1)
-#' @param z control varibles (N-by-p)
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
 #'
 #' @return A list contains estimated coefficients and inferential statistics
-#' \item{theta_hat}{Estimated coefficient}
+#' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
+#' \item{theta_m}{Estimated moments of beta_i}
+#' \item{theta_u}{Estimated moments of u_i}
+#' \item{gamma}{estimated coefficients of control varibles}
 #' \item{V_theta}{variance}
 #'
 #' @export
@@ -20,7 +22,7 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
 
     # OLS estimate and replace gamma by gamma_hat
     if (!is.null(z)) {
-        coef_hat_ols <- lsfit(cbind(x,z), y_true)$coef
+        coef_hat_ols <- lsfit(cbind(x,z), y)$coef
         gamma_hat <- coef_hat_ols[-(1:2)]
         y <- y - c(z %*% gamma_hat)
     }
@@ -180,13 +182,40 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
     h_mean <- colMeans(h_mat)
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
     D <- jac_h_fn(theta_hat)
-    V_theta <- solve(t(D) %*% W %*% D)
+
+    # ERROR CATCHING
+    # If pi ~ 0.5 and b_L ~ B_H, then D can be ill-posed (nearly rank deficient)
+    if (abs(Matrix::rcond(t(D) %*% W %*% D)) < 1e-16) {
+        V_theta <- NULL
+        warning("Jacobian of moment function ill-posed.")
+    } else {
+        V_theta <- solve(t(D) %*% W %*% D)
+    }
+
+    # Compute the moments
+    p_hat <- theta_hat[4]
+    b_L_hat <- theta_hat[5]
+    b_H_hat <- theta_hat[6]
+    Eb_1_hat <- p_hat * b_L_hat + (1 - p_hat) * b_H_hat
+    Eb_2_hat <- p_hat * b_L_hat^2 + (1 - p_hat) * b_H_hat^2
+    Eb_3_hat <- p_hat * b_L_hat^3 + (1 - p_hat) * b_H_hat^3
+
+
+
+    if (!is.null(z)) {
+        gamma_hat <- c(theta_hat[1], gamma_hat)
+    } else {
+        gamma_hat <- theta_hat[1]
+    }
+
 
     list(
-        theta = theta_hat,
+        theta_b = theta_hat[4:6],
+        theta_m = c(Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
+        theta_u = theta_hat[2:3],
+        gamma = gamma_hat,
         V_theta = V_theta
     )
-
 }
 
 # ----------First step estimation by solving equations----------
@@ -250,6 +279,15 @@ moment_est <- function(x, y) {
 
 
 # ----------First step estimation GMM----------
+
+#' Estimation of moments of beta_i
+#'
+#' @param x
+#' @param y
+#' @param s_max
+#'
+#' @export
+#'
 moment_est_gmm <- function(x, y, s_max) {
 
     # with intercept, over-identification, GMM framework
