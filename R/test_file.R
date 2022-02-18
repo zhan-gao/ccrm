@@ -22,8 +22,9 @@
 #     return(cbind(y, x, z))
 # }
 #
-# set.seed(200)
-# n = 1000
+# set.seed(100)
+# s_max = 4
+# n = 10000
 # a = 0.25
 # b = c(1, 2)
 # p = 0.5
@@ -36,6 +37,53 @@
 # coef_hat_ols <- lsfit(cbind(x,z), y_true)$coef
 # gamma_hat <- coef_hat_ols[-(1:2)]
 # y <- y_true - as.numeric(z %*% as.matrix(gamma_hat))
+#
+#
+# # theta_m <- c(0.25, 1, 0, 1.5, 2.5, 4.5)
+# # theta_b <- c(0.25, 1, 0, 0.5, 1, 2)
+# theta_init_m <- moment_est(x, y)
+# print(theta_init_m)
+# theta_init <- init_est_b(x, y, s_max)
+# print(theta_init)
+# theta_hat <-  ccrm_est_K2(x, y, NULL, NULL, s_max)$theta
+# print(theta_hat)
+#
+#
+# theta_init_m_hetero <- moment_est_direct(x, y)
+# print(theta_init_m)
+# theta_init_hetero <- init_est_hetero(x, y, s_max)
+# print(theta_init_hetero)
+# theta_hat_hetero <- ccrm_est_hetero(x, y, 4)
+# print(theta_hat_hetero)
+
+# compute_u3 <- function(x, y) {
+#     m1 <- mean(x)
+#     m2 <- mean(x^2)
+#     m3 <- mean(x^3)
+#     m4 <- mean(x^4)
+#     my1 <- mean(y)
+#     my2 <- mean(y^2)
+#     my3 <- mean(y^3)
+#     my1x1 <- mean(x * y)
+#     my2x2 <- mean(x^2 * y^2)
+#     my3x1 <- mean(x^1 * y^3)
+#     b1 <- 1.5
+#     b2 <- 2.5
+#     b3 <- 4.5
+#     sigma_2  <- 1
+#     a <- 0.25
+
+#     u2 <- my2 - a^2 - 2 * a * m1 * b1 - m2*b2
+#     u3 <- my3   - 3 * m2 * a * b2 - 3 * m1 * (a^2 + sigma_2) * b1 - (a^3 + 3 * a * sigma_2) - m3 * b3
+#     c(u2, u3)
+
+# }
+
+# We want to test whether the new moment conditions work.
+
+
+
+
 
 
 # setwd("C:/Users/zhang/Dropbox/Research/Categorical_Coef_Model/Numerical")

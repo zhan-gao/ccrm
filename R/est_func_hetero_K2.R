@@ -11,162 +11,154 @@
 #' @export
 #'
 
-ccrm_est_hetero <- function(x, y, s_max, method = "md") {
-    theta_temp <- init_est_hetero(x, y, s_max, method)
-    p <- theta_temp[2]
-    b_L <- theta_temp[3]
-    b_H <- theta_temp[4]
-    c(theta_temp[1:5], p * (1 - p) * (b_L - b_H)^2)
-}
+ccrm_est_hetero <- function(x,
+                            y,
+                            s_max,
+                            theta_init = NULL
+                            ) {
 
-# ccrm_est_hetero <- function(x,
-#                             y,
-#                             s_max,
-#                             theta_init = NULL
-#                             ) {
-#
-#     # order of theta_init: a, p, b_L, b_H
-#
-#     s1 <- s_max - 1
-#     s2 <- s_max - 2
-#     s3 <- s_max - 3
-#
-#     if (is.null(theta_init)) {
-#         theta_temp <- init_est_hetero(x, y, s_max)
-#         theta_init <- theta_temp[1:4]
-#     }
-#
-#     # construct x matrix and xy matrix with different order
-#     x_mat <- sapply(1:s_max, function(i) {
-#         x^i
-#     })
-#     m <- colMeans(x_mat)
-#     mxy1 <- colMeans(y * x_mat)
-#     mxy2 <- colMeans(y^2 * x_mat)
-#     mxy3 <- colMeans(y^3 * x_mat)
-#
-#     my1 <- mean(y)
-#     my2 <- mean(y^2)
-#     my3 <- mean(y^3)
-#
-#     h_moment_fn <- function(theta) {
-#         # theta = (a, p, b_L, b_H)
-#         # return a column vector stacking all moment conditions
-#         a <- theta[1]
-#         p <- theta[2]
-#         b_L <- theta[3]
-#         b_H <- theta[4]
-#
-#         b1 <- p * b_L + (1 - p) * b_H
-#         b2 <- p * b_L^2 + (1 - p) * b_H^2
-#         b3 <- p * b_L^3 + (1 - p) * b_H^3
-#
-#         h1 <- c(-my1 + a + m[1] * b1,
-#                 -mxy1[1:s1] + m[1:s1] * a + m[2:s_max] * b1)
-#         h2 <- - mxy2[1:s2] + (
-#             m[1:s2] * my2 + b2 * (m[3:(s2 + 2)] - m[2] * m[1:s2]) + 2 * a * b1 * (m[2:(s2 + 1)] - m[1] * m[1:s2])
-#         )
-#         h3 <- - mxy3[1:s3] + (
-#             b1 * (3 * m[2:(s3+1)] * my2 - 3 * m[1] * m[1:s3] * my2) +
-#                 a * (3 * my2 - 3 * m[1:s3] * my2) + m[1:s3] * my3 +
-#                 a ^ 3 * (3 * m[1:s3] - 3) +
-#                 b3 * (m[4:(s3 + 3)] - m[3] * m[1:s3]) -
-#                 a * b2 * (3 * m[2] - 3 * m[3:(s3 + 2)]) -
-#                 b1 * b2 * (3 * m[2] * m[2:(s3+1)] - 3 * m[1] * m[2] * m[1:s3]) -
-#                 a * b1 ^ 2 * (-6 * m[1:s3] * m[1] ^ 2 + 6 * m[2:(s3+1)] * m[1]) -
-#                 a ^ 2 * b1 * (6 * m[1] - 6 * m[1] * m[1:s3])
-#         )
-#
-#         c(h1, h2, h3)
-#     }
-#
-#     jac_h_fn <- function(theta) {
-#
-#         # theta = (a, p, b_L, b_H)
-#         # return a Jacobian matrix qx4 where q is the number of moment conditions
-#         a <- theta[1]
-#         p <- theta[2]
-#         b_L <- theta[3]
-#         b_H <- theta[4]
-#
-#         b1 <- p * b_L + (1 - p) * b_H
-#         b2 <- p * b_L^2 + (1 - p) * b_H^2
-#         b3 <- p * b_L^3 + (1 - p) * b_H^3
-#
-#         m1 <- m[1]
-#         m2 <- m[2]
-#         m3 <- m[3]
-#         ms <- m[1:s3]
-#         ms1 <- m[2:(s3 + 1)]
-#         ms2 <- m[3:(s3 + 2)]
-#         ms3 <- m[4:(s3 + 3)]
-#
-#         jac_m <- rbind(
-#             cbind(c(1, m[1:s1]), m, 0, 0),
-#             cbind(
-#                 2 * b1 * (m[2:(s2 + 1)] - m[1] * m[1:s2]),
-#                 2 * a  * (m[2:(s2 + 1)] - m[1] * m[1:s2]),
-#                 m[3:(s2 + 2)] - m[2] * m[1:s2],
-#                 0
-#             ),
-#             cbind(
-#                 3*my2 - 3*b2*m2 + 3*b2*ms2 + 3*a^2*ms - ms*(3*my2 - (6*a + 6*b1*m1)*(a + b1*m1)) - (6*a + 6*b1*m1)*(a + b1*ms1) - 3*a^2 - 6*a*b1*m1 + 6*a*b1*ms1,
-#                 3*a^2*ms1 + ms*(m1*(3*a^2 + 6*b1*m1*a - 3*my2 + 3*b2*m2) - 3*a^2*m1 + 6*a*m1*(a + b1*m1)) - ms1*(3*a^2 + 6*b1*m1*a - 3*my2 + 3*b2*m2) - 6*a*m1*(a + b1*ms1),
-#                 3*a*ms2 - ms*(3*a*m2 - 3*m2*(a + b1*m1)) - 3*m2*(a + b1*ms1),
-#                 ms3 - m3*ms
-#             )
-#         )
-#
-#         jac_b <- matrix(c(1, 0, 0, 0,
-#                           0, b_L - b_H, p , 1-p,
-#                           0, b_L^2 - b_H^2, 2 * p * b_L , - 2 * p * b_H,
-#                           0, b_L^3 - b_H^3, 3 * p * b_L^2, - 3 * p * b_H^2),
-#                         4, 4, byrow = TRUE)
-#
-#         jac_m %*% jac_b
-#
-#     }
-#
-#
-#     # Estimate the weighting matrix
-#     # h_mat <- h_moment_mat_fn(theta_init)
-#     # h_mean <- colMeans(h_mat)
-#     # W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
-#
-#     q_fn <- function(theta) {
-#         h_fn_value <- h_moment_fn(theta)
-#         c(t(h_fn_value) %*% h_fn_value)
-#     }
-#
-#     grad_q_fn <- function(theta) {
-#         h_fn_value <- h_moment_fn(theta)
-#         c(2 * t(jac_h_fn(theta)) %*% h_fn_value)
-#     }
-#
-#     # OPTIMIZATION
-#     opts <- list(
-#         "algorithm" = "NLOPT_LD_LBFGS",
-#         "xtol_rel" = 1.0e-8
-#     )
-#     nlopt_sol <- nloptr::nloptr(theta_init,
-#                                 eval_f = q_fn,
-#                                 eval_grad_f = grad_q_fn,
-#                                 lb = c(-Inf, 0, -Inf, -Inf),
-#                                 ub = c(Inf, 1, Inf, Inf),
-#                                 opts = opts
-#     )
-#     theta_hat <- nlopt_sol$solution
-#
-#     p_hat <- theta_hat[2]
-#     b_L_hat <- theta_hat[3]
-#     b_H_hat <- theta_hat[4]
-#     Eb_1_hat <- p_hat * b_L_hat + (1 - p_hat) * b_H_hat
-#     Eb_2_hat <- p_hat * b_L_hat^2 + (1 - p_hat) * b_H_hat^2
-#     Eb_3_hat <- p_hat * b_L_hat^3 + (1 - p_hat) * b_H_hat^3
-#
-#     # a, p, b_L, b_H, Eb1, Var_b
-#     c(theta_hat, Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2)
-# }
+    # order of theta_init: a, p, b_L, b_H
+
+    s1 <- s_max - 1
+    s2 <- s_max - 2
+    s3 <- s_max - 3
+
+    if (is.null(theta_init)) {
+        theta_temp <- init_est_hetero(x, y, s_max)
+        theta_init <- theta_temp[1:4]
+    }
+
+    # construct x matrix and xy matrix with different order
+    x_mat <- sapply(1:s_max, function(i) {
+        x^i
+    })
+    m <- colMeans(x_mat)
+    mxy1 <- colMeans(y * x_mat)
+    mxy2 <- colMeans(y^2 * x_mat)
+    mxy3 <- colMeans(y^3 * x_mat)
+
+    my1 <- mean(y)
+    my2 <- mean(y^2)
+    my3 <- mean(y^3)
+
+    h_moment_fn <- function(theta) {
+        # theta = (a, p, b_L, b_H)
+        # return a column vector stacking all moment conditions
+        a <- theta[1]
+        p <- theta[2]
+        b_L <- theta[3]
+        b_H <- theta[4]
+
+        b1 <- p * b_L + (1 - p) * b_H
+        b2 <- p * b_L^2 + (1 - p) * b_H^2
+        b3 <- p * b_L^3 + (1 - p) * b_H^3
+
+        h1 <- c(-my1 + a + m[1] * b1,
+                -mxy1[1:s1] + m[1:s1] * a + m[2:s_max] * b1)
+        h2 <- - mxy2[1:s2] + (
+            m[1:s2] * my2 + b2 * (m[3:(s2 + 2)] - m[2] * m[1:s2]) + 2 * a * b1 * (m[2:(s2 + 1)] - m[1] * m[1:s2])
+        )
+        h3 <- - mxy3[1:s3] + (
+            b1 * (3 * m[2:(s3+1)] * my2 - 3 * m[1] * m[1:s3] * my2) +
+                a * (3 * my2 - 3 * m[1:s3] * my2) + m[1:s3] * my3 +
+                a ^ 3 * (3 * m[1:s3] - 3) +
+                b3 * (m[4:(s3 + 3)] - m[3] * m[1:s3]) -
+                a * b2 * (3 * m[2] - 3 * m[3:(s3 + 2)]) -
+                b1 * b2 * (3 * m[2] * m[2:(s3+1)] - 3 * m[1] * m[2] * m[1:s3]) -
+                a * b1 ^ 2 * (-6 * m[1:s3] * m[1] ^ 2 + 6 * m[2:(s3+1)] * m[1]) -
+                a ^ 2 * b1 * (6 * m[1] - 6 * m[1] * m[1:s3])
+        )
+
+        c(h1, h2, h3)
+    }
+
+    jac_h_fn <- function(theta) {
+
+        # theta = (a, p, b_L, b_H)
+        # return a Jacobian matrix qx4 where q is the number of moment conditions
+        a <- theta[1]
+        p <- theta[2]
+        b_L <- theta[3]
+        b_H <- theta[4]
+
+        b1 <- p * b_L + (1 - p) * b_H
+        b2 <- p * b_L^2 + (1 - p) * b_H^2
+        b3 <- p * b_L^3 + (1 - p) * b_H^3
+
+        m1 <- m[1]
+        m2 <- m[2]
+        m3 <- m[3]
+        ms <- m[1:s3]
+        ms1 <- m[2:(s3 + 1)]
+        ms2 <- m[3:(s3 + 2)]
+        ms3 <- m[4:(s3 + 3)]
+
+        jac_m <- rbind(
+            cbind(c(1, m[1:s1]), m, 0, 0),
+            cbind(
+                2 * b1 * (m[2:(s2 + 1)] - m[1] * m[1:s2]),
+                2 * a  * (m[2:(s2 + 1)] - m[1] * m[1:s2]),
+                m[3:(s2 + 2)] - m[2] * m[1:s2],
+                0
+            ),
+            cbind(
+                3*my2 - 3*b2*m2 + 3*b2*ms2 + 3*a^2*ms - ms*(3*my2 - (6*a + 6*b1*m1)*(a + b1*m1)) - (6*a + 6*b1*m1)*(a + b1*ms1) - 3*a^2 - 6*a*b1*m1 + 6*a*b1*ms1,
+                3*a^2*ms1 + ms*(m1*(3*a^2 + 6*b1*m1*a - 3*my2 + 3*b2*m2) - 3*a^2*m1 + 6*a*m1*(a + b1*m1)) - ms1*(3*a^2 + 6*b1*m1*a - 3*my2 + 3*b2*m2) - 6*a*m1*(a + b1*ms1),
+                3*a*ms2 - ms*(3*a*m2 - 3*m2*(a + b1*m1)) - 3*m2*(a + b1*ms1),
+                ms3 - m3*ms
+            )
+        )
+
+        jac_b <- matrix(c(1, 0, 0, 0,
+                          0, b_L - b_H, p , 1-p,
+                          0, b_L^2 - b_H^2, 2 * p * b_L , 2 * (1 - p) * b_H,
+                          0, b_L^3 - b_H^3, 3 * p * b_L^2, 3 * (1 - p) * b_H^2),
+                        4, 4, byrow = TRUE)
+
+        jac_m %*% jac_b
+
+    }
+
+
+    # Estimate the weighting matrix
+    # h_mat <- h_moment_mat_fn(theta_init)
+    # h_mean <- colMeans(h_mat)
+    # W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+
+    q_fn <- function(theta) {
+        h_fn_value <- h_moment_fn(theta)
+        c(t(h_fn_value) %*% h_fn_value)
+    }
+
+    grad_q_fn <- function(theta) {
+        h_fn_value <- h_moment_fn(theta)
+        c(2 * t(jac_h_fn(theta)) %*% h_fn_value)
+    }
+
+    # OPTIMIZATION
+    opts <- list(
+        "algorithm" = "NLOPT_LD_LBFGS",
+        "xtol_rel" = 1.0e-8
+    )
+    nlopt_sol <- nloptr::nloptr(theta_init,
+                                eval_f = q_fn,
+                                eval_grad_f = grad_q_fn,
+                                lb = c(-Inf, 0, -Inf, -Inf),
+                                ub = c(Inf, 1, Inf, Inf),
+                                opts = opts
+    )
+    theta_hat <- nlopt_sol$solution
+
+    p_hat <- theta_hat[2]
+    b_L_hat <- theta_hat[3]
+    b_H_hat <- theta_hat[4]
+    Eb_1_hat <- p_hat * b_L_hat + (1 - p_hat) * b_H_hat
+    Eb_2_hat <- p_hat * b_L_hat^2 + (1 - p_hat) * b_H_hat^2
+    Eb_3_hat <- p_hat * b_L_hat^3 + (1 - p_hat) * b_H_hat^3
+
+    # a, p, b_L, b_H, Eb1, Var_b
+    c(theta_hat, Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2)
+}
 
 # ----------First step estimation by solving equations----------
 moment_est_direct <- function(x, y) {

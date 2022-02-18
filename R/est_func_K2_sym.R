@@ -1,11 +1,9 @@
-#' Estimation: homoskedastic error, two categories
+#' Estimation: two categories, symmetric error
 #'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-1)
 #' @param theta_init initial value for distribution parameters
-#' @param s_1
-#' @param s_2
-#' @param s_3
+#' @param s_max
 #'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_hat}{Estimated coefficient}
@@ -14,22 +12,26 @@
 #' \item{V_theta}{variance}
 #'
 #' @export
-ccrm_est <- function(x,
-                     y,
-                     theta_init = NULL,
-                     s_1 = 3,
-                     s_2 = 2,
-                     s_3 = 1) {
+#'
+#'
+
+ccrm_est_K2_sym <- function(x,
+                            y,
+                            theta_init = NULL,
+                            s_max = 4) {
+
 
     # theta_init: estimated parameters only
     # alpha, sigma_2, pi, b_l, b_h
 
 
     n <- length(x)
-    s_max <- max(c(s_1 + 1, s_2 + 2, s_3 + 3))
+    s_1 <- s_max - 1
+    s_2 <- s_max - 2
+    s_3 <- s_max - 3
 
     if (is.null(theta_init)) {
-        theta_temp <- init_est(x, y, s_1, s_2, s_3)$theta
+        theta_temp <- init_est_b_sym(x, y, s_1, s_2, s_3)$theta
         theta_init <- theta_temp[1:5]
     }
 
@@ -170,7 +172,7 @@ ccrm_est <- function(x,
 }
 
 # ----------First step estimation by solving equations----------
-moment_est <- function(x, y) {
+moment_est_sym <- function(x, y) {
     n <- length(x)
 
     a_mat <- matrix(c(
@@ -197,7 +199,7 @@ moment_est <- function(x, y) {
 
     Eb_3 <-
         (mean(x * (y^3)) - alpha^3 * mean(x) - 3 * alpha^2 * mean(x^2) * Eb_1 -
-            3 * alpha * mean(x^3) * Eb_2 - 3 * alpha * sigma_2 -
+            3 * alpha * mean(x^3) * Eb_2 - 3 * alpha * sigma_2 * mean(x) -
             3 * mean(x^2) * Eb_1 * sigma_2
         ) / mean(x^4)
 
@@ -208,12 +210,14 @@ moment_est <- function(x, y) {
 }
 
 # ----------First step estimation GMM----------
-moment_est_gmm <- function(x, y, s_1 = 3, s_2 = 2, s_3 = 1) {
+moment_est_gmm_sym <- function(x, y, s_max = 4) {
 
     # with intercept, over-identification, GMM framework
 
     n <- length(x)
-    s_max <- max(c(s_1 + 1, s_2 + 2, s_3 + 3))
+    s_1 <- s_max - 1
+    s_2 <- s_max - 2
+    s_3 <- s_max - 3
 
     # dim: max(s_1 + 2, s_2 + 3, s_3 + 4)
     x_s_mat <- sapply(0:s_max, function(i) {
@@ -277,7 +281,7 @@ moment_est_gmm <- function(x, y, s_1 = 3, s_2 = 2, s_3 = 1) {
     }
 
     # Estimate the weighting matrix
-    theta_init <- moment_est(x, y)
+    theta_init <- moment_est_sym(x, y)
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
@@ -327,12 +331,10 @@ moment_est_gmm <- function(x, y, s_1 = 3, s_2 = 2, s_3 = 1) {
 }
 
 # ----------Second step estimation----------
-init_est <- function(x,
+init_est_b_sym <- function(x,
                      y,
-                     s_1 = 3,
-                     s_2 = 2,
-                     s_3 = 1) {
-    moment_est_result <- moment_est_gmm(x, y, s_1, s_2, s_3)
+                     s_max) {
+    moment_est_result <- moment_est_gmm(x, y, s_max)
     moment_est_result_parameter <- moment_est_result$theta
 
     # first_step_est: estimated parameters only
