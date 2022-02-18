@@ -173,8 +173,8 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
     nlopt_sol <- nloptr::nloptr(theta_init,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
-                                lb = c(-Inf, 0, -Inf, -Inf, 0, -Inf),
-                                ub = c(Inf, Inf, Inf, Inf, Inf, Inf),
+                                lb = c(-Inf, 0, -Inf, 0, -Inf, -Inf),
+                                ub = c(Inf, Inf, Inf, 1, Inf, Inf),
                                 opts = opts
     )
     theta_hat <- nlopt_sol$solution
