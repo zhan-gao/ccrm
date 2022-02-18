@@ -22,7 +22,7 @@ ccrm_est_hetero <- function(x,
                             theta_init = NULL
                             ) {
 
-
+    n <- length(x)
 
     s1 <- s_max - 1
     s2 <- s_max - 2

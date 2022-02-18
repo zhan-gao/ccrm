@@ -4,7 +4,7 @@
 \alias{ccrm_est}
 \title{The wrapper of estimation functions}
 \usage{
-ccrm_est(x, y, z, s_max, theta_init = NULL, est_method = "gmm")
+ccrm_est(x, y, z, s_max = 4, theta_init = NULL, est_method = "gmm")
 }
 \arguments{
 \item{x}{regressor (N-by-1)}

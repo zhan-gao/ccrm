@@ -17,7 +17,9 @@
 #' @export
 #'
 #'
-ccrm_est <- function(x, y, z, s_max, theta_init = NULL, est_method = "gmm") {
+ccrm_est <- function(x, y, z, s_max = 4, theta_init = NULL, est_method = "gmm") {
+
+    n <- length(x)
 
     if (est_method == "gmm") {
         ccrm_est_result <- ccrm_est_K2(x, y, z,

@@ -16,6 +16,8 @@
 #'
 ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
 
+    n <- length(x)
+
     s1 <- s_max - 1
     s2 <- s_max - 2
     s3 <- s_max - 3
