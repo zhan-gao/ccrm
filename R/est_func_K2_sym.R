@@ -149,11 +149,8 @@ ccrm_est_K2_sym <- function(x,
     # Estimate the weighting matrix
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
-    if (abs(Matrix::rcond((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) < 1e-15) {
-        W <- diag(length(h_mean))
-    } else {
-        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
-    }
+
+    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
 
 
     q_fn <- function(theta) {
@@ -190,11 +187,8 @@ ccrm_est_K2_sym <- function(x,
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
     h_mean <- colMeans(h_mat)
-    if (abs(Matrix::rcond((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) < 1e-15) {
-        W <- diag(length(h_mean))
-    } else {
-        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
-    }
+
+    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
 
     D <- jac_h_fn(theta_hat)
 
@@ -373,11 +367,7 @@ moment_est_gmm_sym <- function(x, y, s_max = 4) {
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
 
-    if (abs(Matrix::rcond((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) < 1e-15) {
-        W <- diag(length(h_mean))
-    } else {
-        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
-    }
+    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
 
     q_fn <- function(theta) {
         h_fn_value <-  h_moment_fn(theta)
