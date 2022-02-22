@@ -23,7 +23,6 @@ ccrm_est_K2_sym <- function(x,
                             theta_init = NULL,
                             s_max = 4) {
 
-
     n <- length(x)
     s_1 <- s_max - 1
     s_2 <- s_max - 2
@@ -327,8 +326,8 @@ moment_est_gmm_sym <- function(x, y, s_max = 4) {
             (alpha^2 + sigma_2) * Ex_s[1:(s_2 + 1)] + 2 * alpha * Eb_1 * Ex_s[2:(s_2 + 2)] + Eb_2 * Ex_s[3:(s_2 + 3)] -
             Ey_2x_s[1:(s_2 + 1)]
         h_3 <-
-            (alpha^3 + 3 * alpha * sigma_2) * Ex_s[1:(s_3 + 1)] + Eb_3 * Ex_s[, 4:(s_3 + 4)] +
-            3 * Ex_s_mat[2:(s_3 + 2)] * Eb_1 * (alpha^2 + sigma_2) + 3 * alpha * Ex_s[3:(s_3 + 3)] * Eb_2 - Ey_3x_s[1:(s_3 + 1)]
+            (alpha^3 + 3 * alpha * sigma_2) * Ex_s[1:(s_3 + 1)] + Eb_3 * Ex_s[4:(s_3 + 4)] +
+            3 * Ex_s[2:(s_3 + 2)] * Eb_1 * (alpha^2 + sigma_2) + 3 * alpha * Ex_s[3:(s_3 + 3)] * Eb_2 - Ey_3x_s[1:(s_3 + 1)]
 
         c(h_1, h_2, h_3)
     }
@@ -418,7 +417,7 @@ moment_est_gmm_sym <- function(x, y, s_max = 4) {
 init_est_b_sym <- function(x,
                            y,
                            s_max) {
-    moment_est_result <- moment_est_gmm(x, y, s_max)
+    moment_est_result <- moment_est_gmm_sym(x, y, s_max)
     moment_est_result_parameter <- moment_est_result$theta
 
     # first_step_est: estimated parameters only
