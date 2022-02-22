@@ -57,6 +57,10 @@ ccrm_est_K2_sym <- function(x,
     Ey_3x_s_mat <- y^3 * x_s_mat
 
     Ex_s <- colMeans(x_s_mat)
+    Ey_1x_s <- colMeans(Ey_1x_s_mat)
+    Ey_2x_s <- colMeans(Ey_2x_s_mat)
+    Ey_3x_s <- colMeans(Ey_3x_s_mat)
+
 
     # return moment matrix
     h_moment_mat_fn <- function(theta) {
@@ -81,6 +85,30 @@ ccrm_est_K2_sym <- function(x,
             3 * Ex_s_mat[, 2:(s_3 + 2)] * Eb_1 * (alpha^2 + sigma_2) + 3 * alpha * Ex_s_mat[, 3:(s_3 + 3)] * Eb_2 - Ey_3x_s_mat[, 1:(s_3 + 1)]
 
         cbind(h_1, h_2, h_3)
+    }
+
+    h_moment_fn <- function(theta) {
+        # theta = (alpha, sigma^2,  pi, b_L, b_H)
+        alpha <- theta[1]
+        sigma_2 <- theta[2]
+        p <- theta[3]
+        b_L <- theta[4]
+        b_H <- theta[5]
+
+        Eb_1 <- p * b_L + (1 - p) * b_H
+        Eb_2 <- p * b_L^2 + (1 - p) * b_H^2
+        Eb_3 <- p * b_L^3 + (1 - p) * b_H^3
+
+        h_1 <-
+            alpha * Ex_s[1:(s_1 + 1)] + Eb_1 * Ex_s[2:(s_1 + 2)] - Ey_1x_s[1:(s_1 + 1)]
+        h_2 <-
+            (alpha^2 + sigma_2) * Ex_s[1:(s_2 + 1)] + 2 * alpha * Eb_1 * Ex_s[2:(s_2 + 2)] + Eb_2 * Ex_s[3:(s_2 + 3)] -
+            Ey_2x_s[1:(s_2 + 1)]
+        h_3 <-
+            (alpha^3 + 3 * alpha * sigma_2) * Ex_s[1:(s_3 + 1)] + Eb_3 * Ex_s[4:(s_3 + 4)] +
+            3 * Ex_s[2:(s_3 + 2)] * Eb_1 * (alpha^2 + sigma_2) + 3 * alpha * Ex_s[3:(s_3 + 3)] * Eb_2 - Ey_3x_s[1:(s_3 + 1)]
+
+        c(h_1, h_2, h_3)
     }
 
     jac_h_fn <- function(theta) {
@@ -121,15 +149,20 @@ ccrm_est_K2_sym <- function(x,
     # Estimate the weighting matrix
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    if (abs(Matrix::rcond((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) < 1e-15) {
+        W <- diag(length(h_mean))
+    } else {
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    }
+
 
     q_fn <- function(theta) {
-        h_fn_value <- colMeans(h_moment_mat_fn(theta))
+        h_fn_value <- h_moment_fn(theta)
         c(t(h_fn_value) %*% W %*% h_fn_value)
     }
 
     grad_q_fn <- function(theta) {
-        h_fn_value <- colMeans(h_moment_mat_fn(theta))
+        h_fn_value <- h_moment_fn(theta)
         c(2 * t(jac_h_fn(theta)) %*% W %*% h_fn_value)
     }
 
@@ -139,11 +172,11 @@ ccrm_est_K2_sym <- function(x,
         "xtol_rel" = 1.0e-8
     )
     nlopt_sol <- nloptr::nloptr(theta_init,
-        eval_f = q_fn,
-        eval_grad_f = grad_q_fn,
-        lb = c(-Inf, 0, 0, -Inf, -Inf),
-        ub = c(Inf, Inf, 1, Inf, Inf),
-        opts = opts
+                                eval_f = q_fn,
+                                eval_grad_f = grad_q_fn,
+                                lb = c(-Inf, 0, 0, -Inf, -Inf),
+                                ub = c(Inf, Inf, 1, Inf, Inf),
+                                opts = opts
     )
     theta_hat <- nlopt_sol$solution
 
@@ -157,21 +190,23 @@ ccrm_est_K2_sym <- function(x,
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
     h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    if (abs(Matrix::rcond((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) < 1e-15) {
+        W <- diag(length(h_mean))
+    } else {
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    }
+
     D <- jac_h_fn(theta_hat)
-    r_fn <- b_L_hat - b_H_hat
 
     # ERROR CATCHING
     # If pi ~ 0.5 and b_L ~ B_H, then D can be ill-posed (nearly rank deficient)
     if (abs(Matrix::rcond(t(D) %*% W %*% D)) < 1e-16) {
         V_theta <- NULL
         warning("Jacobian of moment function ill-posed.")
-        wald_stat <- 0
+
         t_stat <- c(NA, NA)
     } else {
         V_theta <- solve(t(D) %*% W %*% D)
-        grad_r_fn <- c(0, 0, 0, 1, -1)
-        wald_stat <- n * (r_fn^2) / c(t(grad_r_fn) %*% V_theta %*% grad_r_fn)
         t_stat <- theta_hat[c(4, 5)] / sqrt(diag(V_theta)[c(4, 5)] / n)
     }
 
@@ -218,8 +253,8 @@ moment_est_sym <- function(x, y) {
 
     Eb_3 <-
         (mean(x * (y^3)) - alpha^3 * mean(x) - 3 * alpha^2 * mean(x^2) * Eb_1 -
-            3 * alpha * mean(x^3) * Eb_2 - 3 * alpha * sigma_2 * mean(x) -
-            3 * mean(x^2) * Eb_1 * sigma_2
+             3 * alpha * mean(x^3) * Eb_2 - 3 * alpha * sigma_2 * mean(x) -
+             3 * mean(x^2) * Eb_1 * sigma_2
         ) / mean(x^4)
 
     if (sigma_2 < 0) sigma_2 <- 0
@@ -258,6 +293,10 @@ moment_est_gmm_sym <- function(x, y, s_max = 4) {
     Ey_3x_s_mat <- y^3 * x_s_mat
 
     Ex_s <- colMeans(x_s_mat)
+    Ey_1x_s <- colMeans(Ey_1x_s_mat)
+    Ey_2x_s <- colMeans(Ey_2x_s_mat)
+    Ey_3x_s <- colMeans(Ey_3x_s_mat)
+
 
     # return moment matrix
     h_moment_mat_fn <- function(theta) {
@@ -278,6 +317,26 @@ moment_est_gmm_sym <- function(x, y, s_max = 4) {
             3 * Ex_s_mat[, 2:(s_3 + 2)] * Eb_1 * (alpha^2 + sigma_2) + 3 * alpha * Ex_s_mat[, 3:(s_3 + 3)] * Eb_2 - Ey_3x_s_mat[, 1:(s_3 + 1)]
 
         cbind(h_1, h_2, h_3)
+    }
+
+    h_moment_fn <- function(theta) {
+        # gamma = (alpha, sigma^2, Eb_1, Eb_2, Eb_3)
+        alpha <- theta[1]
+        sigma_2 <- theta[2]
+        Eb_1 <- theta[3]
+        Eb_2 <- theta[4]
+        Eb_3 <- theta[5]
+
+        h_1 <-
+            alpha * Ex_s[1:(s_1 + 1)] + Eb_1 * Ex_s[2:(s_1 + 2)] - Ey_1x_s[1:(s_1 + 1)]
+        h_2 <-
+            (alpha^2 + sigma_2) * Ex_s[1:(s_2 + 1)] + 2 * alpha * Eb_1 * Ex_s[2:(s_2 + 2)] + Eb_2 * Ex_s[3:(s_2 + 3)] -
+            Ey_2x_s[1:(s_2 + 1)]
+        h_3 <-
+            (alpha^3 + 3 * alpha * sigma_2) * Ex_s[1:(s_3 + 1)] + Eb_3 * Ex_s[, 4:(s_3 + 4)] +
+            3 * Ex_s_mat[2:(s_3 + 2)] * Eb_1 * (alpha^2 + sigma_2) + 3 * alpha * Ex_s[3:(s_3 + 3)] * Eb_2 - Ey_3x_s[1:(s_3 + 1)]
+
+        c(h_1, h_2, h_3)
     }
 
     jac_h_fn <- function(theta) {
@@ -313,15 +372,20 @@ moment_est_gmm_sym <- function(x, y, s_max = 4) {
     theta_init <- moment_est_sym(x, y)
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+
+    if (abs(Matrix::rcond((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) < 1e-15) {
+        W <- diag(length(h_mean))
+    } else {
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    }
 
     q_fn <- function(theta) {
-        h_fn_value <- colMeans(h_moment_mat_fn(theta))
+        h_fn_value <-  h_moment_fn(theta)
         c(t(h_fn_value) %*% W %*% h_fn_value)
     }
 
     grad_q_fn <- function(theta) {
-        h_fn_value <- colMeans(h_moment_mat_fn(theta))
+        h_fn_value <- h_moment_fn(theta)
         c(2 * t(jac_h_fn(theta)) %*% W %*% h_fn_value)
     }
 
@@ -332,37 +396,38 @@ moment_est_gmm_sym <- function(x, y, s_max = 4) {
         "xtol_rel" = 1.0e-8
     )
     nlopt_sol <- nloptr::nloptr(theta_init,
-        eval_f = q_fn,
-        eval_grad_f = grad_q_fn,
-        lb = c(-Inf, 0, -Inf, 0, -Inf),
-        ub = c(Inf, Inf, Inf, Inf, Inf),
-        opts = opts
+                                eval_f = q_fn,
+                                eval_grad_f = grad_q_fn,
+                                lb = c(-Inf, 0, -Inf, 0, -Inf),
+                                ub = c(Inf, Inf, Inf, Inf, Inf),
+                                opts = opts
     )
     theta_hat <- nlopt_sol$solution
 
-
-    # test statistics
-    h_mat <- h_moment_mat_fn(theta_hat)
-    h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
-    D <- jac_h_fn(theta_hat)
-    V_theta <- solve(t(D) %*% W %*% D)
-
-    r_fn <- theta_hat[4] - theta_hat[3]^2
-    grad_r_fn <- c(0, 0, -2 * theta_hat[3], 1, 0)
-    wald_stat <- n * (r_fn^2) / c(t(grad_r_fn) %*% V_theta %*% grad_r_fn)
+#
+#     # test statistics
+#     h_mat <- h_moment_mat_fn(theta_hat)
+#     h_mean <- colMeans(h_mat)
+#     if (abs(Matrix::rcond((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) < 1e-15) {
+#         W <- diag(length(h_mean))
+#     } else {
+#         W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+#     }
+#     D <- jac_h_fn(theta_hat)
+#     V_theta <- solve(t(D) %*% W %*% D)
+#
+#     r_fn <- theta_hat[4] - theta_hat[3]^2
+#     grad_r_fn <- c(0, 0, -2 * theta_hat[3], 1, 0)
+#     wald_stat <- n * (r_fn^2) / c(t(grad_r_fn) %*% V_theta %*% grad_r_fn)
     list(
-        theta = theta_hat,
-        wald_stat = wald_stat,
-        V_theta = V_theta,
-        var_b = theta_hat[4] - theta_hat[3]^2
+        theta = theta_hat
     )
 }
 
 # ----------Second step estimation----------
 init_est_b_sym <- function(x,
-                     y,
-                     s_max) {
+                           y,
+                           s_max) {
     moment_est_result <- moment_est_gmm(x, y, s_max)
     moment_est_result_parameter <- moment_est_result$theta
 
@@ -413,11 +478,11 @@ init_est_b_sym <- function(x,
         "xtol_rel" = 1.0e-8
     )
     nlopt_sol <- nloptr::nloptr(theta_start,
-        eval_f = g_fn,
-        eval_grad_f = grad_g_fn,
-        lb = c(0, -Inf, -Inf),
-        ub = c(1, Inf, Inf),
-        opts = opts
+                                eval_f = g_fn,
+                                eval_grad_f = grad_g_fn,
+                                lb = c(0, -Inf, -Inf),
+                                ub = c(1, Inf, Inf),
+                                opts = opts
     )
     theta_hat <- nlopt_sol$solution
 

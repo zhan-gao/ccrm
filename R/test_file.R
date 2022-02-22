@@ -30,14 +30,14 @@
 # p = 0.5
 # gamma = c(1, 1)
 # data = generate_data_hetero_cov(n, a, b, p, gamma)
-# y = data[, 1]
+# y_true = data[, 1]
 # x = data[, 2]
 # z = data[, -c(1, 2)]
 #
 # coef_hat_ols <- lsfit(cbind(x,z), y_true)$coef
 # gamma_hat <- coef_hat_ols[-(1:2)]
 # y <- y_true - as.numeric(z %*% as.matrix(gamma_hat))
-#
+
 #
 # # theta_m <- c(0.25, 1, 0, 1.5, 2.5, 4.5)
 # # theta_b <- c(0.25, 1, 0, 0.5, 1, 2)
