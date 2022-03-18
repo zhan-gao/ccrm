@@ -9,7 +9,7 @@
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
 #' \item{theta_m}{Estimated moments of beta_i}
 #' \item{theta_u}{Estimated moments of u_i}
-#' \item{gamma}{estimated coefficients of control varibles}
+#' \item{gamma}{estimated coefficients of control varibles, including intercept}
 #' \item{V_theta}{variance}
 #'
 #' @export
@@ -22,21 +22,37 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
     s2 <- s_max - 2
     s3 <- s_max - 3
 
+    if (is.null(theta_init)) {
+        theta_temp <- init_est_b(x, y, z, s_max)
+        theta_init <- theta_temp[1:6]
+    }
+
     # OLS estimate and replace gamma by gamma_hat
     if (!is.null(z)) {
-        coef_hat_ols <- lsfit(cbind(x,z), y)$coef
-        gamma_hat <- coef_hat_ols[-(1:2)]
+
+        # OLS
+        w <- cbind(1, x, z)
+        phi_hat <- solve(t(w) %*% w, t(w) %*% y)
+        # Residuals
+        xi_hat <- c(y - w %*% phi_hat)
+        # Variance and s.e.
+        Q_ww <- (t(w) %*% w) / n
+        D_hat <- Matrix::Diagonal(n)
+        diag(D_hat) <- xi_hat^2
+        V_wxi <- (t(w) %*% D_hat %*% w) / n
+        V_hat <- (solve(Q_ww) %*% V_wxi %*% solve(Q_ww)) / n
+        se_hat <- sqrt(Matrix::diag(V_hat))
+
+        gamma_hat <- phi_hat[-(1:2)]
         y <- y - c(z %*% gamma_hat)
+
+        gamma_hat <- phi_hat[-2]
+        gamma_se_hat <- se_hat[-2]
     }
 
     # The following estimation is on y_tilde = a + x_i b_i + u_i
     # we don't replace a by a_hat because including the intercept
     #   stabilizes the finite sample performance
-
-    if (is.null(theta_init)) {
-        theta_temp <- init_est_b(x, y, s_max)
-        theta_init <- theta_temp[1:6]
-    }
 
     # construct x matrix and xy matrix with different order
     x_mat <- sapply(0:s_max, function(i) {
@@ -164,7 +180,6 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
         c(2 * t(jac_h_fn(theta)) %*% W %*% h_fn_value)
     }
 
-
     # OPTIMIZATION
     opts <- list(
         "algorithm" = "NLOPT_LD_LBFGS",
@@ -185,15 +200,6 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
     D <- jac_h_fn(theta_hat)
 
-    # ERROR CATCHING
-    # If pi ~ 0.5 and b_L ~ B_H, then D can be ill-posed (nearly rank deficient)
-    if (abs(Matrix::rcond(t(D) %*% W %*% D)) < 1e-16) {
-        V_theta <- NULL
-        warning("Jacobian of moment function ill-posed.")
-    } else {
-        V_theta <- solve(t(D) %*% W %*% D)
-    }
-
     # Compute the moments
     p_hat <- theta_hat[4]
     b_L_hat <- theta_hat[5]
@@ -202,21 +208,48 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
     Eb_2_hat <- p_hat * b_L_hat^2 + (1 - p_hat) * b_H_hat^2
     Eb_3_hat <- p_hat * b_L_hat^3 + (1 - p_hat) * b_H_hat^3
 
-
-
-    if (!is.null(z)) {
-        gamma_hat <- c(theta_hat[1], gamma_hat)
+    # Compute the variance-covariance matrix of the estimated parameters
+    # ERROR CATCHING
+    # If pi ~ 0.5 and b_L ~ B_H, then D can be ill-posed (nearly rank deficient)
+    if (abs(Matrix::rcond(t(D) %*% W %*% D)) < 1e-16) {
+        V_theta <- NULL
+        warning("Jacobian of moment function ill-posed.")
     } else {
-        gamma_hat <- theta_hat[1]
+
+        if(is.null(z)) {
+            V_meat_mat <- t(h_mat) %*% (h_mat) / n
+            sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
+            V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
+        } else {
+            L_mat <- diag(ncol(w))[-c(1, 2), ]
+            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+                             2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
+                             3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z) / n
+            meat_mat <- h_mat + t(G_gamma %*% L_mat %*% solve(Q_ww) %*% t(w * xi_hat))
+            V_meat_mat <- t(meat_mat) %*% (meat_mat) / n
+            sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
+            V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
+        }
     }
 
+    H_grad_vec <- t(c(
+        0, 0, 0,
+        ((b_H_hat - b_L_hat)^2*(- b_H_hat^2*p_hat^2 + 2*b_H_hat^2*p_hat - b_H_hat^2 + b_L_hat^2*p_hat^2))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
+        -(2*b_H_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
+        (2*b_L_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2
+    ))
+    kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
 
     list(
         theta_b = theta_hat[4:6],
         theta_m = c(Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
         theta_u = theta_hat[2:3],
+        theta_se = sqrt(diag(V_theta)),
         gamma = gamma_hat,
-        V_theta = V_theta
+        gamma_se = gamma_se_hat,
+        V_theta = V_theta,
+        kappa2 = Eb_1_hat^2 / Eb_2_hat,
+        kappa2_se = kappa2_se
     )
 }
 
@@ -286,11 +319,12 @@ moment_est <- function(x, y) {
 #'
 #' @param x
 #' @param y
+#' @param z
 #' @param s_max
 #'
 #' @export
 #'
-moment_est_gmm <- function(x, y, s_max) {
+moment_est_gmm <- function(x, y, z, s_max) {
 
     # with intercept, over-identification, GMM framework
 
@@ -299,6 +333,30 @@ moment_est_gmm <- function(x, y, s_max) {
     s1 <- s_max - 1
     s2 <- s_max - 2
     s3 <- s_max - 3
+
+
+    # OLS estimate and replace gamma by gamma_hat
+    if (!is.null(z)) {
+
+        # OLS
+        w <- cbind(1, x, z)
+        phi_hat <- solve(t(w) %*% w, t(w) %*% y)
+        # Residuals
+        xi_hat <- c(y - w %*% phi_hat)
+        # Variance and s.e.
+        Q_ww <- (t(w) %*% w) / n
+        D_hat <- Matrix::Diagonal(n)
+        diag(D_hat) <- xi_hat^2
+        V_wxi <- (t(w) %*% D_hat %*% w) / n
+        V_hat <- (solve(Q_ww) %*% V_wxi %*% solve(Q_ww)) / n
+        se_hat <- sqrt(Matrix::diag(V_hat))
+
+        gamma_hat <- phi_hat[-(1:2)]
+        y <- y - c(z %*% gamma_hat)
+
+        gamma_hat <- phi_hat[-2]
+        gamma_se_hat <- se_hat[-2]
+    }
 
     # construct x matrix and xy matrix with different order
     x_mat <- sapply(0:s_max, function(i) {
@@ -388,6 +446,8 @@ moment_est_gmm <- function(x, y, s_max) {
         )
     }
 
+
+
     # Estimate the weighting matrix
     theta_init <- moment_est(x, y)
     h_mat <- h_moment_mat_fn(theta_init)
@@ -424,21 +484,49 @@ moment_est_gmm <- function(x, y, s_max) {
     h_mean <- colMeans(h_mat)
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
     D <- jac_h_fn(theta_hat)
-    V_theta <- solve(t(D) %*% W %*% D)
+
+    # Compute the variance-covariance matrix of the estimated parameters
+    # ERROR CATCHING
+    if (abs(Matrix::rcond(t(D) %*% W %*% D)) < 1e-16) {
+        V_theta <- NULL
+        warning("Jacobian of moment function ill-posed.")
+    } else {
+
+        if(is.null(z)) {
+            V_meat_mat <- t(h_mat) %*% (h_mat) / n
+            sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
+            V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
+        } else {
+            L_mat <- diag(ncol(w))[-c(1, 2), ]
+            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+                             2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
+                             3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z) / n
+            meat_mat <- h_mat + t(G_gamma %*% L_mat %*% solve(Q_ww) %*% t(w * xi_hat))
+            V_meat_mat <- t(meat_mat) %*% (meat_mat) / n
+            sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
+            V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
+        }
+    }
+
+    kappa2 <- theta_hat[4]^2/theta_hat[5]
+    H_grad_vec <- t(c(0, 0, 0, 2 * theta_hat[4] / theta_hat[5], - theta_hat[4]^2 / theta_hat[5]^2, 0))
+    kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
 
     list(
         theta = theta_hat,
-        V_theta = V_theta
+        V_theta = V_theta,
+        kappa2 = kappa2,
+        kappa2_se = kappa2_se
     )
 }
 
 # ----------Second step estimation----------
 init_est_b <- function(x,
-                     y,
-                     s_max) {
+                       y,
+                       z,
+                       s_max) {
 
-
-    moment_est_result <- moment_est_gmm(x, y, s_max)
+    moment_est_result <- moment_est_gmm(x, y, z, s_max)
     moment_est_result_parameter <- moment_est_result$theta
 
     # first_step_est: estimated parameters only

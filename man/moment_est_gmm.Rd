@@ -4,7 +4,7 @@
 \alias{moment_est_gmm}
 \title{Estimation of moments of beta_i}
 \usage{
-moment_est_gmm(x, y, s_max)
+moment_est_gmm(x, y, z, s_max)
 }
 \arguments{
 \item{s_max}{}

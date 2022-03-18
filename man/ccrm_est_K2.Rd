@@ -20,7 +20,7 @@ A list contains estimated coefficients and inferential statistics
 \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
 \item{theta_m}{Estimated moments of beta_i}
 \item{theta_u}{Estimated moments of u_i}
-\item{gamma}{estimated coefficients of control varibles}
+\item{gamma}{estimated coefficients of control varibles, including intercept}
 \item{V_theta}{variance}
 }
 \description{
