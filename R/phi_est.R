@@ -1,3 +1,16 @@
+#' Estimation: gamma
+#'
+#' @param x regressor (N-by-1)
+#' @param y dependent variable (N-by-1)
+#' @param z control variables (N-by-p_z)
+#'
+#' @return A list contains estimated coefficients and inferential statistics
+#' \item{phi_hat}{Estimated phi}
+#' \item{se_phi}{Estimated  se}
+#'
+#' @export
+#'
+
 phi_est <- function(x, y, z) {
 
     n <- length(y)

@@ -2,3 +2,4 @@
 
 export(ccrm_est_K2)
 export(moment_est_gmm)
+export(phi_est)
