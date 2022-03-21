@@ -211,8 +211,10 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
     # Compute the variance-covariance matrix of the estimated parameters
     # ERROR CATCHING
     # If pi ~ 0.5 and b_L ~ B_H, then D can be ill-posed (nearly rank deficient)
-    if (abs(Matrix::rcond(t(D) %*% W %*% D)) < 1e-16) {
+    if (!check_inverse(t(D) %*% W %*% D)) {
         V_theta <- NULL
+        theta_se <- rep(NaN, length(theta_hat))
+        kappa2_se <- NaN
         warning("Jacobian of moment function ill-posed.")
     } else {
 
@@ -230,15 +232,21 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
             sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         }
+
+        H_grad_vec <- t(c(
+            0, 0, 0,
+            ((b_H_hat - b_L_hat)^2*(- b_H_hat^2*p_hat^2 + 2*b_H_hat^2*p_hat - b_H_hat^2 + b_L_hat^2*p_hat^2))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
+            -(2*b_H_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
+            (2*b_L_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2
+        ))
+        kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
     }
 
-    H_grad_vec <- t(c(
-        0, 0, 0,
-        ((b_H_hat - b_L_hat)^2*(- b_H_hat^2*p_hat^2 + 2*b_H_hat^2*p_hat - b_H_hat^2 + b_L_hat^2*p_hat^2))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
-        -(2*b_H_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
-        (2*b_L_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2
-    ))
-    kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
+
+    if(is.null(z)) {
+        gamma = NULL
+        gamma_se = NULL
+    }
 
     list(
         theta_b = theta_hat[4:6],
@@ -487,7 +495,7 @@ moment_est_gmm <- function(x, y, z, s_max) {
 
     # Compute the variance-covariance matrix of the estimated parameters
     # ERROR CATCHING
-    if (abs(Matrix::rcond(t(D) %*% W %*% D)) < 1e-16) {
+    if (!check_inverse(t(D) %*% W %*% D)) {
         V_theta <- NULL
         warning("Jacobian of moment function ill-posed.")
     } else {
@@ -506,11 +514,13 @@ moment_est_gmm <- function(x, y, z, s_max) {
             sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         }
+
+        kappa2 <- theta_hat[4]^2/theta_hat[5]
+        H_grad_vec <- t(c(0, 0, 0, 2 * theta_hat[4] / theta_hat[5], - theta_hat[4]^2 / theta_hat[5]^2, 0))
+        kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
     }
 
-    kappa2 <- theta_hat[4]^2/theta_hat[5]
-    H_grad_vec <- t(c(0, 0, 0, 2 * theta_hat[4] / theta_hat[5], - theta_hat[4]^2 / theta_hat[5]^2, 0))
-    kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
+
 
     list(
         theta = theta_hat,

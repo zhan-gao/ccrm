@@ -11,3 +11,7 @@ initial_value_gap <- function(Eb_1, Eb_2) {
         return(runif(1))
     }
 }
+
+check_inverse <- function(m){
+    "matrix" %in% class(try(solve(m),silent=TRUE))
+}
