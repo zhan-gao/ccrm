@@ -21,16 +21,16 @@
 #
 #     return(cbind(y, x, z))
 # }
-#
-# set.seed(100)
-# s_max = 4
-# n = 10000
+# #
+# set.seed(110)
+# s_max = 3
+# n = 100000
 # a = 0.25
 # b = c(1, 2)
 # p = 0.5
 # gamma = c(1, 1)
 # data = generate_data_hetero_cov(n, a, b, p, gamma)
-# y_true = data[, 1]
+# y = data[, 1]
 # x = data[, 2]
 # z = data[, -c(1, 2)]
 

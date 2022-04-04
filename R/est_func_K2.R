@@ -515,8 +515,8 @@ moment_est_gmm <- function(x, y, z, s_max) {
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         }
 
-        kappa2 <- theta_hat[4]^2/theta_hat[5]
-        H_grad_vec <- t(c(0, 0, 0, 2 * theta_hat[4] / theta_hat[5], - theta_hat[4]^2 / theta_hat[5]^2, 0))
+        kappa2 <- theta_hat[5] - theta_hat[4]^2
+        H_grad_vec <- t(c(0, 0, 0, -2 * theta_hat[4], 1, 0))
         kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
     }
 
