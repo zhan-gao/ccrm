@@ -4,6 +4,7 @@
 #' @param y dependent variable (N-by-1)
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
+#' @param weight_mat
 #'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
@@ -14,7 +15,7 @@
 #'
 #' @export
 #'
-ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
+ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL) {
 
     n <- length(x)
 
@@ -165,10 +166,14 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4) {
         jac_m %*% jac_b
     }
 
-    # Estimate the weighting matrix
-    h_mat <- h_moment_mat_fn(theta_init)
-    h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    # Estimate the weighting
+    if (is.null(weight_mat)) {
+        h_mat <- h_moment_mat_fn(theta_init)
+        h_mean <- colMeans(h_mat)
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    } else {
+        W <- weight_mat
+    }
 
     q_fn <- function(theta) {
         h_fn_value <- h_moment_fn(theta)
@@ -524,7 +529,9 @@ moment_est_gmm <- function(x, y, z, s_max) {
 
     list(
         theta = theta_hat,
+        theta_se = sqrt(diag(V_theta)),
         V_theta = V_theta,
+        weight_mat = W,
         kappa2 = kappa2,
         kappa2_se = kappa2_se
     )
