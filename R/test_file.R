@@ -21,6 +21,70 @@
 #
 #     return(cbind(y, x, z))
 # }
+
+
+generate_data_vanilla_3 <- function(n, a, b, p, chisq_df = 2) {
+    # K = 3
+
+    sample_ind <- runif(n)
+    group_id <- rowSums(
+        sapply(p, function(x){
+            as.integer(sample_ind > x)
+        })
+    )
+    b0 <- b[group_id]
+
+    x <- (rchisq(n, df = chisq_df) - chisq_df) / sqrt(2 * chisq_df)
+    sigma_i <- 0.5 * (1 + rchisq(n, df = 1))
+    u <- rnorm(n, mean = 0, sd = sqrt(sigma_i))
+
+    y <- a + x * b0 + u
+
+    return(cbind(y, x))
+}
+
+n <- 1000000
+a <- 0.5
+b <- c(1, 2, 3)
+p <- c(0, 0.25, 0.75)
+d <- generate_data_vanilla_3(n, a, b, p)
+x <- d[, 'x']
+y <- d[, 'y']
+prop <- c(0.25, 0.5, 0.25)
+sapply(1:5, function(x){
+    sum(prop * (b^x))
+})
+res <- moment_est_3(x, y)
+res[c(1, 6:10)]
+
+
+#
+#
+# generate_data_vanilla <- function (n, # sample size
+#                                    a, # intercept
+#                                    b,
+#                                    gamma, # deterministic coefficient
+#                                    p,
+#                                    dgp_para = 2) {
+#
+#     chisq_df <- dgp_para
+#
+#     group_id <- as.integer(runif(n) > p) + 1
+#     b0 <- b[group_id]
+#
+#     x <- (rchisq(n, df = chisq_df) - chisq_df) / sqrt(2 * chisq_df)
+#     z_1 <- x + rnorm(n)
+#     z_2 <- z_1 + rnorm(n)
+#     z <- cbind(z_1, z_2)
+#     sigma_i <- 0.5 * (1 + rchisq(n, df = 1))
+#     u <- rnorm(n, mean = 0, sd = sqrt(sigma_i))
+#
+#     y <- a + x * b0 + as.numeric(z %*% gamma) + u
+#
+#     return(cbind(y, x, z))
+# }
+
+
 # #
 # set.seed(110)
 # s_max = 3

@@ -1,9 +1,10 @@
-#' Estimation: three categories
+#' Estimation: Three categories
 #'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-1)
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
+#' @param weight_mat
 #'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
@@ -14,7 +15,7 @@
 #'
 #' @export
 #'
-ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4) {
+ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NULL) {
 
     n <- length(x)
 
@@ -165,10 +166,14 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4) {
         jac_m %*% jac_b
     }
 
-    # Estimate the weighting matrix
-    h_mat <- h_moment_mat_fn(theta_init)
-    h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    # Estimate the weighting
+    if (is.null(weight_mat)) {
+        h_mat <- h_moment_mat_fn(theta_init)
+        h_mean <- colMeans(h_mat)
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    } else {
+        W <- weight_mat
+    }
 
     q_fn <- function(theta) {
         h_fn_value <- h_moment_fn(theta)
@@ -262,19 +267,24 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4) {
 }
 
 # ----------First step estimation by solving equations----------
-moment_est <- function(x, y) {
-    n <- length(x)
+moment_est_3 <- function(x, y) {
 
     m1 <- mean(x)
     m2 <- mean(x^2)
     m3 <- mean(x^3)
     m4 <- mean(x^4)
+    m5 <- mean(x^5)
+    m6 <- mean(x^6)
     my1 <- mean(y)
     my2 <- mean(y^2)
     my3 <- mean(y^3)
+    my4 <- mean(y^4)
+    my5 <- mean(y^5)
     my1x1 <- mean(x * y)
     my2x2 <- mean(x^2 * y^2)
     my3x1 <- mean(x^1 * y^3)
+    my4x2 <- mean(x^2 * y^4)
+    my5x1 <- mean(x^1 * y^5)
 
     # First Moment
     a_mat <- matrix(c(
@@ -313,10 +323,38 @@ moment_est <- function(x, y) {
     sigma_3 <- res_temp[1]
     b3  <- res_temp[2]
 
+    # Fourth Moment
+    a_mat <- matrix(c(
+        1, m4,
+        m2, m6
+    ), 2, 2, byrow = TRUE)
+    b_vec <- c(
+        my4 - 4 * m3 * a * b3 - 6 * m2 * (a^2 + sigma_2) * b2 - 4 * m1 * (a^3 + 3 * a * sigma_2 + sigma_3) * b1 - (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3),
+        my4x2 - 4 * m5 * a * b3 - 6 * m4 * (a^2 + sigma_2) * b2 - 4 * m3 * (a^3 + 3 * a * sigma_2 + sigma_3) * b1 - (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3) * m2
+    )
+    res_temp <- solve(a_mat, b_vec)
+    sigma_4 <- res_temp[1]
+    b4  <- res_temp[2]
+
+    # Fifth Moment
+    a_mat <- matrix(c(
+        1, m5,
+        m1, m6
+    ), 2, 2, byrow = TRUE)
+    b_vec <- c(
+        my5 - 5 * m4 * a * b4 - 10 * m3 * (a^2 + sigma_2) * b3 - 10 * m2 * (a^3 + 3 * a * sigma_2 + sigma_3) * b2 - 5 * m1 * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) * b1 - (a^5 + 10 * a^3 * sigma_2 + 10 * a^2 * sigma_3 + 5 * a * sigma_4),
+        my5x1 - 5 * m5 * a * b4 - 10 * m4 * (a^2 + sigma_2) * b3 - 10 * m3 * (a^3 + 3 * a * sigma_2 + sigma_3) * b2 - 5 * m2 * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) * b1 - (a^5 + 10 * a^3 * sigma_2 + 10 * a^2 * sigma_3 + 5 * a * sigma_4) * m1
+    )
+    res_temp <- solve(a_mat, b_vec)
+    sigma_5 <- res_temp[1]
+    b5  <- res_temp[2]
+
     if (sigma_2 < 0) sigma_2 <- 0
     if (b2 < 0) b2 <- 0
+    if (sigma_4 < 0) sigma_4 <- 0
+    if (b4 < 0) b4 <- 0
 
-    c(a, sigma_2, sigma_3, b1, b2, b3)
+    c(a, sigma_2, sigma_3, sigma_4, sigma_5, b1, b2, b3, b4, b5)
 }
 
 
@@ -524,7 +562,9 @@ moment_est_gmm <- function(x, y, z, s_max) {
 
     list(
         theta = theta_hat,
+        theta_se = sqrt(diag(V_theta)),
         V_theta = V_theta,
+        weight_mat = W,
         kappa2 = kappa2,
         kappa2_se = kappa2_se
     )

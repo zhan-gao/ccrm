@@ -4,7 +4,15 @@
 \alias{ccrm_est_K2}
 \title{Estimation: two categories}
 \usage{
-ccrm_est_K2(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL)
+ccrm_est_K2(
+  x,
+  y,
+  z,
+  theta_init = NULL,
+  s_max = 4,
+  weight_mat = NULL,
+  second_step = FALSE
+)
 }
 \arguments{
 \item{x}{regressor (N-by-1)}
@@ -13,7 +21,7 @@ ccrm_est_K2(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL)
 
 \item{theta_init}{initial value for distribution parameters}
 
-\item{weight_mat}{}
+\item{second_step}{}
 }
 \value{
 A list contains estimated coefficients and inferential statistics
