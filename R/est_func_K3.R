@@ -358,7 +358,6 @@ moment_est_3 <- function(x, y) {
 }
 
 
-
 # ----------First step estimation GMM----------
 
 #' Estimation of moments of beta_i
@@ -370,7 +369,7 @@ moment_est_3 <- function(x, y) {
 #'
 #' @export
 #'
-moment_est_gmm <- function(x, y, z, s_max) {
+moment_est_gmm_3 <- function(x, y, z, s_max = 6) {
 
     # with intercept, over-identification, GMM framework
 
@@ -379,6 +378,8 @@ moment_est_gmm <- function(x, y, z, s_max) {
     s1 <- s_max - 1
     s2 <- s_max - 2
     s3 <- s_max - 3
+    s4 <- s_max - 4
+    s5 <- s_max - 5
 
 
     # OLS estimate and replace gamma by gamma_hat
@@ -412,22 +413,32 @@ moment_est_gmm <- function(x, y, z, s_max) {
     mxy1_mat <- y * x_mat
     mxy2_mat <- y^2 * x_mat
     mxy3_mat <- y^3 * x_mat
+    mxy4_mat <- y^4 * x_mat
+    mxy5_mat <- y^5 * x_mat
+
 
     mxy1 <- colMeans(y * x_mat)
     mxy2 <- colMeans(y^2 * x_mat)
     mxy3 <- colMeans(y^3 * x_mat)
+    mxy4 <- colMeans(y^4 * x_mat)
+    mxy5 <- colMeans(y^5 * x_mat)
     m <- colMeans(x_mat)
 
     # return moment matrix
     h_moment_mat_fn <- function(theta) {
 
-        # theta = (alpha, sigma^2, E(u_i^3) Eb_1, Eb_2, Eb_3)
+        # theta = (alpha, sigma^2, E(u_i^3), E(u_i^4), E(u_i^5), Eb_1, Eb_2, Eb_3, Eb_4, Eb_5)
         a <- theta[1]
         sigma_2 <- theta[2]
         sigma_3 <- theta[3]
-        Eb_1 <- theta[4]
-        Eb_2 <- theta[5]
-        Eb_3 <- theta[6]
+        sigma_4 <- theta[4]
+        sigma_5 <- theta[5]
+
+        Eb_1 <- theta[6]
+        Eb_2 <- theta[7]
+        Eb_3 <- theta[8]
+        Eb_4 <- theta[9]
+        Eb_5 <- theta[10]
 
         h1 <-
             a * x_mat[, 1:(s1 + 1)] + Eb_1 * x_mat[, 2:(s1 + 2)] - mxy1_mat[, 1:(s1 + 1)]
@@ -438,46 +449,86 @@ moment_est_gmm <- function(x, y, z, s_max) {
             (a^3 + 3 * a * sigma_2 + sigma_3) * x_mat[, 1:(s3 + 1)] + Eb_3 * x_mat[, 4:(s3 + 4)] +
             3 * x_mat[, 2:(s3 + 2)] * Eb_1 * (a^2 + sigma_2) + 3 * a * x_mat[, 3:(s3 + 3)] * Eb_2 - mxy3_mat[, 1:(s3 + 1)]
 
-        cbind(h1, h2, h3)
+        h4 <-
+            (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) * x_mat[, 1:(s4 + 1)] +
+            4 * x_mat[, 2:(s4 + 2)] * Eb_1 * (a^3 + 3 * a * sigma_2 + sigma_3)  +
+            6 * x_mat[, 3:(s4 + 3)] * Eb_2 * (a^2 + sigma_2) +
+            4 * a * x_mat[, 4:(s4 + 4)] * Eb_3 +
+            Eb_4 * x_mat[, 5:(s4 + 5)] - mxy4_mat[, 1:(s4 + 1)]
+
+        h5 <-
+            (a^5 + 10 * a^3 * sigma_2 + 10 * a^2 * sigma_3 + 5 * a * sigma_4 + sigma_5) * x_mat[, 1:(s5 + 1)] +
+            5 * x_mat[, 2:(s5 + 2)] * Eb_1 * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) +
+            10 * x_mat[, 3:(s5 + 3)] * Eb_2 * (a^3 + 3 * a * sigma_2 + sigma_3) +
+            10 * x_mat[, 4:(s5 + 4)] * Eb_3 * (a^2 + sigma_2) +
+            5 * a * x_mat[, 5:(s5 + 5)] * Eb_4 +
+            Eb_5 * x_mat[, 6:(s5 + 6)] - mxy5_mat[, 1:(s5 + 1)]
+
+        cbind(h1, h2, h3, h4, h5)
     }
 
     h_moment_fn <- function(theta) {
-        # theta = (alpha, sigma^2, E(u_i^3) Eb_1, Eb_2, Eb_3)
+        # theta = (alpha, sigma^2, E(u_i^3), E(u_i^4), E(u_i^5), Eb_1, Eb_2, Eb_3, Eb_4, Eb_5)
         a <- theta[1]
         sigma_2 <- theta[2]
         sigma_3 <- theta[3]
-        b1 <- theta[4]
-        b2 <- theta[5]
-        b3 <- theta[6]
+        sigma_4 <- theta[4]
+        sigma_5 <- theta[5]
+
+        b1 <- theta[6]
+        b2 <- theta[7]
+        b3 <- theta[8]
+        b4 <- theta[9]
+        b5 <- theta[10]
 
         h1 <- m[2:(s1 + 2)] * b1 + m[1:(s1 + 1)] * a - mxy1[1:(s1 + 1)]
         h2 <- m[3:(s2 + 3)] * b2 + 2 * m[2:(s2 + 2)] * (a * b1) + m[1:(s2 + 1)] * (a^2 + sigma_2) - mxy2[1:(s2 + 1)]
         h3 <- m[4:(s3 + 4)] * b3 + 3 * m[3:(s3 + 3)] * b2 * a + 3 * m[2:(s3 + 2)] * b1 * (a^2 + sigma_2) +
             m[1:(s3 + 1)] * (a^3 + 3 * a * sigma_2 + sigma_3) - mxy3[1:(s3 + 1)]
+        h4 <- m[5:(s4 + 5)] * b4 +
+            4 * m[4:(s4 + 4)] * b3 * a +
+            6 * m[3:(s4 + 3)] * b2 * (a^2 + sigma_2) +
+            4 * m[2:(s4 + 2)] * b1 * (a^3 + 3 * a * sigma_2 + sigma_3) +
+            m[1:(s4 + 1)] * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) - mxy4[1:(s4 + 1)]
+        h5 <- m[6:(s5 + 6)] * b5 +
+            5 * m[5:(s5 + 5)] * b4 * a +
+            10 * m[4:(s5 + 4)] * b3 * (a^2 + sigma_2) +
+            10 * m[3:(s5 + 3)] * b2 * (a^3 + 3 * a * sigma_2 + sigma_3) +
+            5 * m[2:(s5 + 2)] * b1 * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) +
+            m[1:(s5 + 1)] * (a^5 + 10 * a^3 * sigma_2 + 10 * a^2 * sigma_3 + 5 * a * sigma_4 + sigma_5) - mxy5[1:(s5 + 1)]
 
-        c(h1, h2, h3)
+        c(h1, h2, h3, h4, h5)
 
     }
 
 
     jac_h_fn <- function(theta) {
 
-        # theta = (alpha, sigma^2, E(u_i^3) b1, b2, b3)
+        # theta = (alpha, sigma^2, E(u_i^3), E(u_i^4), E(u_i^5), Eb_1, Eb_2, Eb_3, Eb_4, Eb_5)
         a <- theta[1]
         sigma_2 <- theta[2]
         sigma_3 <- theta[3]
-        b1 <- theta[4]
-        b2 <- theta[5]
-        b3 <- theta[6]
+        sigma_4 <- theta[4]
+        sigma_5 <- theta[5]
+
+        b1 <- theta[6]
+        b2 <- theta[7]
+        b3 <- theta[8]
+        b4 <- theta[9]
+        b5 <- theta[10]
 
         rbind(
-            cbind(m[1:(s1 + 1)], 0, 0, m[2:(s1 + 2)], 0, 0),
+            cbind(m[1:(s1 + 1)], 0, 0, 0, 0, m[2:(s1 + 2)], 0, 0, 0, 0),
             cbind(
                 2 * a * m[1:(s2 + 1)] + 2 * m[2:(s2 + 2)] * b1,
                 m[1:(s2 + 1)],
                 0,
+                0,
+                0,
                 2 * a * m[2:(s2 + 2)],
                 m[3:(s2 + 3)],
+                0,
+                0,
                 0
             ),
             cbind(
@@ -485,17 +536,58 @@ moment_est_gmm <- function(x, y, z, s_max) {
                     3 * m[3:(s3 + 3)] * b2 + 3 * sigma_2 * m[1:(s3 + 1)],
                 3 * m[2:(s3 + 2)] * b1 + 3 * a * m[1:(s3 + 1)],
                 m[1:(s3 + 1)],
+                0,
+                0,
                 3 * m[2:(s3 + 2)] * (a^2 + sigma_2),
                 3 * a * m[3:(s3 + 3)],
-                m[4:(s3 + 4)]
+                m[4:(s3 + 4)],
+                0,
+                0
+            ),
+            cbind(
+                (4 * a^3 + 12 * sigma_2 * a + 4 * sigma_3) * m[1:(s4 + 1)] +
+                    12 * (a^2 + sigma_2)* m[2:(s4 + 2)] * b1 +
+                    12 * a * m[3:(s4 + 3)] * b2 +
+                    4 * m[4:(s4 + 4)] * b3,
+                6 * a^2 * m[1:(s4 + 1)] +
+                    12 * a * m[2:(s4 + 2)] * b1 +
+                    6 * m[3:(s4 + 3)] * b2,
+                4 * a * m[1:(s4 + 1)] + 4 * m[2:(s4 + 2)] * b1,
+                m[1:(s4 + 1)],
+                0,
+                4 * m[2:(s4 + 2)] * (a^3 + 3 * a * sigma_2 + sigma_3),
+                6 * m[3:(s4 + 3)] * (a^2 + sigma_2),
+                4 * a * m[4:(s4 + 4)],
+                m[5:(s4 + 5)],
+                0
+            ),
+            cbind(
+                (5 * a^4 + 30 * a^2 * sigma_2 + 20 * a * sigma_3 + 5 * sigma_4) * m[1:(s5 + 1)] +
+                    5 * (4 * a^3 + 12 * a * sigma_2 + 4 * sigma_3) * m[2:(s5 + 2)] * b1 +
+                    30 * (a^2 + sigma_2) * m[3:(s5 + 3)] * b2 +
+                    20 * a * m[4:(s5 + 4)] * b3 +
+                    5 * m[5:(s5 + 5)] * b4,
+                10 * a^3 * m[1:(s5 + 1)] +
+                    30 * a^2 * m[2:(s5 + 2)] * b1 +
+                    30 * a * m[3:(s5 + 3)] * b2 +
+                    10 * m[4:(s5 + 4)] * b3,
+                10 * a^2 * m[1:(s5 + 1)] +
+                    20 * a * m[2:(s5 + 2)] * b1 +
+                    10 * m[3:(s5 + 3)] * b2,
+                5 * a * m[1:(s5 + 1)] +
+                    5 * m[2:(s5 + 2)] * b1,
+                m[1:(s5 + 1)],
+                5 * m[2:(s5 + 2)] * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4),
+                10 * m[3:(s5 + 3)] * (a^ 3 + 3 * a * sigma_2 + sigma_3),
+                10 * m[4:(s5 + 4)] * (a^2 + sigma_2),
+                5 * a * m[5:(s5 + 5)],
+                m[6:(s5 + 6)]
             )
         )
     }
 
-
-
     # Estimate the weighting matrix
-    theta_init <- moment_est(x, y)
+    theta_init <- moment_est_3(x, y)
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
@@ -519,8 +611,8 @@ moment_est_gmm <- function(x, y, z, s_max) {
     nlopt_sol <- nloptr::nloptr(theta_init,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
-                                lb = c(-Inf, 0, -Inf, -Inf, 0, -Inf),
-                                ub = c(Inf, Inf, Inf, Inf, Inf, Inf),
+                                lb = c(-Inf, 0, -Inf, 0, -Inf, -Inf, 0, -Inf, 0, -Inf),
+                                ub = c(Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf),
                                 opts = opts
     )
     theta_hat <- nlopt_sol$solution
@@ -557,8 +649,6 @@ moment_est_gmm <- function(x, y, z, s_max) {
         H_grad_vec <- t(c(0, 0, 0, -2 * theta_hat[4], 1, 0))
         kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
     }
-
-
 
     list(
         theta = theta_hat,
