@@ -58,7 +58,7 @@ sapply(1:5, function(x){
 res <- moment_est_3(x, y)
 res
 
-# res_gmm <- moment_est_gmm_3(x, y, NULL)$theta
+# weight_mat <- moment_est_gmm_3(x, y, NULL)$weight_mat
 # res_gmm[6:10]
 # moment_est_result_parameter <- res_gmm
 # b1 <- moment_est_result_parameter[6]

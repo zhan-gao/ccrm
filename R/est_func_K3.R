@@ -26,8 +26,8 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     s5 <- s_max - 5
 
     if (is.null(theta_init)) {
-        theta_temp <- init_est_b(x, y, z, s_max)
-        theta_init <- theta_temp[1:6]
+        theta_temp <- init_est_b_3(x, y, z, s_max)
+        theta_init <- theta_temp[1:10]
     }
 
     # OLS estimate and replace gamma by gamma_hat
@@ -85,13 +85,12 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
         sigma_3 <- theta[3]
         sigma_4 <- theta[4]
         sigma_5 <- theta[5]
-
         p_L <- theta[6]
         p_M <- theta[7]
-        p_H <- theta[8]
-        b_L <- theta[9]
-        b_M <- theta[10]
-        b_H <- 1 - theta[9] - theta[10]
+        p_H <- 1 - theta[6] - theta[7]
+        b_L <- theta[8]
+        b_M <- theta[9]
+        b_H <- theta[10]
 
         Eb_1 <- p_L * b_L + p_M * b_M + p_H * b_H
         Eb_2 <- p_L * b_L^2 + p_M * b_M^2 + p_H * b_H^2
@@ -136,10 +135,10 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
         sigma_5 <- theta[5]
         p_L <- theta[6]
         p_M <- theta[7]
-        p_H <- theta[8]
-        b_L <- theta[9]
-        b_M <- theta[10]
-        b_H <- 1 - theta[9] - theta[10]
+        p_H <- 1 - theta[6] - theta[7]
+        b_L <- theta[8]
+        b_M <- theta[9]
+        b_H <- theta[10]
 
         b1 <- p_L * b_L + p_M * b_M + p_H * b_H
         b2 <- p_L * b_L^2 + p_M * b_M^2 + p_H * b_H^2
@@ -299,8 +298,14 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     eval_g_ineq <- function(theta){
         return(
             list(
-                "constraints" = x[6] + x[7] - 1,
-                "jacobian"=c(1, 1)
+                "constraints" = c(theta[6] + theta[7] - 1,
+                                  theta[8] - theta[9],
+                                  theta[9] - theta[10],
+                                  theta[8] - theta[10]),
+                "jacobian"= rbind(c(rep(0, 5), 1, 1, 0, 0, 0),
+                                  c(rep(0, 5), 0, 0, 1, 1, 0),
+                                  c(rep(0, 5), 0, 0, 0, 1, 1),
+                                  c(rep(0, 5), 0, 0, 1, 0, 1))
             )
         )
     }
@@ -317,8 +322,8 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     nlopt_sol <- nloptr::nloptr(theta_init,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
-                                lb = c(-Inf, 0, -Inf, 0, -Inf, -Inf),
-                                ub = c(Inf, Inf, Inf, 1, Inf, Inf),
+                                lb = c(-Inf, 0, -Inf, 0, -Inf, 0, 0, -Inf, -Inf, -Inf),
+                                ub = c(Inf, Inf, Inf, Inf, Inf, 1, 1, Inf, Inf, Inf),
                                 eval_g_ineq = eval_g_ineq,
                                 opts = opts
     )
@@ -329,6 +334,10 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     h_mean <- colMeans(h_mat)
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
     D <- jac_h_fn(theta_hat)
+
+    ###############################
+    # Seems second step can help with the estimation...
+    ###############################
 
     # Compute the moments
     p_L_hat <- theta_hat[6]
@@ -810,40 +819,36 @@ init_est_b_3 <- function(x,
 
         p_L <- theta[1]
         p_M <- theta[2]
-        p_H <- theta[3]
-        b_L <- theta[4]
-        b_M <- theta[5]
-        b_H <- theta[6]
+        p_H <- 1 - theta[1] - theta[2]
+        b_L <- theta[3]
+        b_M <- theta[4]
+        b_H <- theta[5]
 
         f_value <- c(
-            p_L + p_M + p_H,
             p_L * b_L + p_M * b_M + p_H * b_H ,
             p_L * b_L^2 + p_M * b_M^2 + p_H * b_H^2,
             p_L * b_L^3 + p_M * b_M^3 + p_H * b_H^3,
             p_L * b_L^4 + p_M * b_M^4 + p_H * b_H^4,
             p_L * b_L^5 + p_M * b_M^5 + p_H * b_H^5
-        ) - c(1, b1, b2, b3, b4, b5)
+        ) - c(b1, b2, b3, b4, b5)
         f_value
     }
     jac_f_fn <- function(theta) {
         p_L <- theta[1]
         p_M <- theta[2]
-        p_H <- theta[3]
-        b_L <- theta[4]
-        b_M <- theta[5]
-        b_H <- theta[6]
+        p_H <- 1 - theta[1] - theta[2]
+        b_L <- theta[3]
+        b_M <- theta[4]
+        b_H <- theta[5]
 
         jac_mat <- matrix(
             c(
-                1, 1, 1, 0, 0, 0,
-                b_L, b_M, b_H, p_L, p_M, p_H,
-                b_L^2, b_M^2, b_H^2, 2 * p_L * b_L, 2 * p_M * b_M, 2 * p_H * b_H,
-                b_L^3, b_M^3, b_H^3, 3 * p_L * b_L^2, 3 * p_M * b_M^2, 3 * p_H * b_H^2,
-                b_L^4, b_M^4, b_H^4, 4 * p_L * b_L^3, 4 * p_M * b_M^3, 4 * p_H * b_H^3,
-                b_L^5, b_M^5, b_H^5, 5 * p_L * b_L^4, 5 * p_M * b_M^4, 5 * p_H * b_H^4
-            ),
-            6, 6,
-            byrow = TRUE
+                b_L - b_H, b_M - b_H, p_L, p_M, 1 - p_L - p_M,
+                b_L^2 - b_H^2, b_M^2 - b_H^2, 2 * p_L * b_L, 2 * p_M * b_M, 2 * (1 - p_L - p_M) * b_H,
+                b_L^3 - b_H^3, b_M^3 - b_H^3, 3 * p_L * b_L^2, 3 * p_M * b_M^2, 3 * (1 - p_L - p_M) * b_H^2,
+                b_L^4 - b_H^4, b_M^4 - b_H^4, 4 * p_L * b_L^3, 4 * p_M * b_M^3, 4 * (1 - p_L - p_M) * b_H^3,
+                b_L^5 - b_H^5, b_M^5 - b_H^5, 5 * p_L * b_L^4, 5 * p_M * b_M^4, 5 * (1 - p_L - p_M) * b_H^4
+            ), 5, 5, byrow = TRUE
         )
         jac_mat
     }
@@ -860,21 +865,44 @@ init_est_b_3 <- function(x,
     }
 
     gap <- initial_value_gap(b1, b2)
-    theta_start <- c(0.25, 0.5, 0.25, b1 - gap, b1, b1 + gap)
+    theta_start <- c(0.25, 0.5, b1 - gap, b1, b1 + gap)
 
+    eval_g_ineq <- function(theta){
+        return(
+            list(
+                "constraints" = c(theta[1] + theta[2] - 1,
+                                  theta[3] - theta[4],
+                                  theta[4] - theta[5],
+                                  theta[3] - theta[5]),
+                "jacobian"= rbind(c(1, 1, 0, 0, 0),
+                                  c(0, 0, 1, 1, 0),
+                                  c(0, 0, 0, 1, 1),
+                                  c(0, 0, 1, 0, 1))
+            )
+        )
+    }
+
+    local_opts <- list("algorithm" = "NLOPT_LD_MMA",
+                       "xtol_rel"  = 1.0e-10)
     opts <- list(
-        "algorithm" = "NLOPT_LD_LBFGS",
+        "algorithm" = "NLOPT_LD_AUGLAG",
         "xtol_rel" = 1.0e-15,
-        "maxeval" = 1e6
+        "maxeval" = 1e6,
+        "local_opts" = local_opts
     )
+    # opts <- list(
+    #     "algorithm" = "NLOPT_LD_LBFGS",
+    #     "xtol_rel" = 1.0e-15,
+    #     "maxeval" = 1e6
+    # )
 
     nlopt_sol <- nloptr::nloptr(
         theta_start,
         eval_f = g_fn,
         eval_grad_f = grad_g_fn,
-        lb = c(0, 0, 0, -Inf, -Inf, -Inf),
-        ub = c(1, 1, 1,  Inf, Inf, Inf),
-        # eval_g_eq = eval_g_eq,
+        lb = c(0, 0, -Inf, -Inf, -Inf),
+        ub = c(1, 1,  Inf, Inf, Inf),
+        eval_g_ineq = eval_g_ineq,
         opts = opts
     )
     theta_hat <- nlopt_sol$solution
