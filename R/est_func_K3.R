@@ -15,13 +15,15 @@
 #'
 #' @export
 #'
-ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NULL) {
+ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NULL) {
 
     n <- length(x)
 
     s1 <- s_max - 1
     s2 <- s_max - 2
     s3 <- s_max - 3
+    s4 <- s_max - 4
+    s5 <- s_max - 5
 
     if (is.null(theta_init)) {
         theta_temp <- init_est_b(x, y, z, s_max)
@@ -63,26 +65,39 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NUL
     mxy1_mat <- y * x_mat
     mxy2_mat <- y^2 * x_mat
     mxy3_mat <- y^3 * x_mat
+    mxy4_mat <- y^4 * x_mat
+    mxy5_mat <- y^5 * x_mat
+
 
     mxy1 <- colMeans(y * x_mat)
     mxy2 <- colMeans(y^2 * x_mat)
     mxy3 <- colMeans(y^3 * x_mat)
+    mxy4 <- colMeans(y^4 * x_mat)
+    mxy5 <- colMeans(y^5 * x_mat)
     m <- colMeans(x_mat)
 
     # return moment matrix
     h_moment_mat_fn <- function(theta) {
 
-        # theta = (alpha, sigma^2, E(u_i^3) p, b_L, b_H)
+        # theta = (alpha, sigma^2, E(u_i^3), E(u_i^4), E(u_i^5), p_L, p_M, p_H, b_L, b_M, b_H)
         a <- theta[1]
         sigma_2 <- theta[2]
         sigma_3 <- theta[3]
-        p <- theta[4]
-        b_L <- theta[5]
-        b_H <- theta[6]
+        sigma_4 <- theta[4]
+        sigma_5 <- theta[5]
 
-        Eb_1 <- p * b_L + (1 - p) * b_H
-        Eb_2 <- p * b_L^2 + (1 - p) * b_H^2
-        Eb_3 <- p * b_L^3 + (1 - p) * b_H^3
+        p_L <- theta[6]
+        p_M <- theta[7]
+        p_H <- theta[8]
+        b_L <- theta[9]
+        b_M <- theta[10]
+        b_H <- 1 - theta[9] - theta[10]
+
+        Eb_1 <- p_L * b_L + p_M * b_M + p_H * b_H
+        Eb_2 <- p_L * b_L^2 + p_M * b_M^2 + p_H * b_H^2
+        Eb_3 <- p_L * b_L^3 + p_M * b_M^3 + p_H * b_H^3
+        Eb_4 <- p_L * b_L^4 + p_M * b_M^4 + p_H * b_H^4
+        Eb_5 <- p_L * b_L^5 + p_M * b_M^5 + p_H * b_H^5
 
         h1 <-
             a * x_mat[, 1:(s1 + 1)] + Eb_1 * x_mat[, 2:(s1 + 2)] - mxy1_mat[, 1:(s1 + 1)]
@@ -93,55 +108,99 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NUL
             (a^3 + 3 * a * sigma_2 + sigma_3) * x_mat[, 1:(s3 + 1)] + Eb_3 * x_mat[, 4:(s3 + 4)] +
             3 * x_mat[, 2:(s3 + 2)] * Eb_1 * (a^2 + sigma_2) + 3 * a * x_mat[, 3:(s3 + 3)] * Eb_2 - mxy3_mat[, 1:(s3 + 1)]
 
-        cbind(h1, h2, h3)
+        h4 <-
+            (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) * x_mat[, 1:(s4 + 1)] +
+            4 * x_mat[, 2:(s4 + 2)] * Eb_1 * (a^3 + 3 * a * sigma_2 + sigma_3)  +
+            6 * x_mat[, 3:(s4 + 3)] * Eb_2 * (a^2 + sigma_2) +
+            4 * a * x_mat[, 4:(s4 + 4)] * Eb_3 +
+            Eb_4 * x_mat[, 5:(s4 + 5)] - mxy4_mat[, 1:(s4 + 1)]
+
+        h5 <-
+            (a^5 + 10 * a^3 * sigma_2 + 10 * a^2 * sigma_3 + 5 * a * sigma_4 + sigma_5) * x_mat[, 1:(s5 + 1)] +
+            5 * x_mat[, 2:(s5 + 2)] * Eb_1 * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) +
+            10 * x_mat[, 3:(s5 + 3)] * Eb_2 * (a^3 + 3 * a * sigma_2 + sigma_3) +
+            10 * x_mat[, 4:(s5 + 4)] * Eb_3 * (a^2 + sigma_2) +
+            5 * a * x_mat[, 5:(s5 + 5)] * Eb_4 +
+            Eb_5 * x_mat[, 6:(s5 + 6)] - mxy5_mat[, 1:(s5 + 1)]
+
+        cbind(h1, h2, h3, h4, h5)
     }
 
     h_moment_fn <- function(theta) {
 
-        # theta = (alpha, sigma^2, E(u_i^3) p, b_L, b_H)
+        # theta = (alpha, sigma^2, E(u_i^3), E(u_i^4), E(u_i^5), p_L, p_M, p_H, b_L, b_M, b_H)
         a <- theta[1]
         sigma_2 <- theta[2]
         sigma_3 <- theta[3]
-        p <- theta[4]
-        b_L <- theta[5]
-        b_H <- theta[6]
+        sigma_4 <- theta[4]
+        sigma_5 <- theta[5]
+        p_L <- theta[6]
+        p_M <- theta[7]
+        p_H <- theta[8]
+        b_L <- theta[9]
+        b_M <- theta[10]
+        b_H <- 1 - theta[9] - theta[10]
 
-        b1 <- p * b_L + (1 - p) * b_H
-        b2 <- p * b_L^2 + (1 - p) * b_H^2
-        b3 <- p * b_L^3 + (1 - p) * b_H^3
+        b1 <- p_L * b_L + p_M * b_M + p_H * b_H
+        b2 <- p_L * b_L^2 + p_M * b_M^2 + p_H * b_H^2
+        b3 <- p_L * b_L^3 + p_M * b_M^3 + p_H * b_H^3
+        b4 <- p_L * b_L^4 + p_M * b_M^4 + p_H * b_H^4
+        b5 <- p_L * b_L^5 + p_M * b_M^5 + p_H * b_H^5
 
         h1 <- m[2:(s1 + 2)] * b1 + m[1:(s1 + 1)] * a - mxy1[1:(s1 + 1)]
         h2 <- m[3:(s2 + 3)] * b2 + 2 * m[2:(s2 + 2)] * (a * b1) + m[1:(s2 + 1)] * (a^2 + sigma_2) - mxy2[1:(s2 + 1)]
         h3 <- m[4:(s3 + 4)] * b3 + 3 * m[3:(s3 + 3)] * b2 * a + 3 * m[2:(s3 + 2)] * b1 * (a^2 + sigma_2) +
             m[1:(s3 + 1)] * (a^3 + 3 * a * sigma_2 + sigma_3) - mxy3[1:(s3 + 1)]
+        h4 <- m[5:(s4 + 5)] * b4 +
+            4 * m[4:(s4 + 4)] * b3 * a +
+            6 * m[3:(s4 + 3)] * b2 * (a^2 + sigma_2) +
+            4 * m[2:(s4 + 2)] * b1 * (a^3 + 3 * a * sigma_2 + sigma_3) +
+            m[1:(s4 + 1)] * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) - mxy4[1:(s4 + 1)]
+        h5 <- m[6:(s5 + 6)] * b5 +
+            5 * m[5:(s5 + 5)] * b4 * a +
+            10 * m[4:(s5 + 4)] * b3 * (a^2 + sigma_2) +
+            10 * m[3:(s5 + 3)] * b2 * (a^3 + 3 * a * sigma_2 + sigma_3) +
+            5 * m[2:(s5 + 2)] * b1 * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4) +
+            m[1:(s5 + 1)] * (a^5 + 10 * a^3 * sigma_2 + 10 * a^2 * sigma_3 + 5 * a * sigma_4 + sigma_5) - mxy5[1:(s5 + 1)]
 
-        c(h1, h2, h3)
+        c(h1, h2, h3, h4, h5)
 
     }
 
 
     jac_h_fn <- function(theta) {
 
-        # theta = (alpha, sigma^2, E(u_i^3) p, b_L, b_H)
+        # theta = (alpha, sigma^2, E(u_i^3), E(u_i^4), E(u_i^5), p_L, p_M, p_H, b_L, b_M, b_H)
         a <- theta[1]
         sigma_2 <- theta[2]
         sigma_3 <- theta[3]
-        p <- theta[4]
-        b_L <- theta[5]
-        b_H <- theta[6]
+        sigma_4 <- theta[4]
+        sigma_5 <- theta[5]
+        p_L <- theta[6]
+        p_M <- theta[7]
+        p_H <- 1 - theta[6] - theta[7]
+        b_L <- theta[8]
+        b_M <- theta[9]
+        b_H <- theta[10]
 
-        b1 <- p * b_L + (1 - p) * b_H
-        b2 <- p * b_L^2 + (1 - p) * b_H^2
-        b3 <- p * b_L^3 + (1 - p) * b_H^3
+        b1 <- p_L * b_L + p_M * b_M + p_H * b_H
+        b2 <- p_L * b_L^2 + p_M * b_M^2 + p_H * b_H^2
+        b3 <- p_L * b_L^3 + p_M * b_M^3 + p_H * b_H^3
+        b4 <- p_L * b_L^4 + p_M * b_M^4 + p_H * b_H^4
+        b5 <- p_L * b_L^5 + p_M * b_M^5 + p_H * b_H^5
 
         jac_m <- rbind(
-            cbind(m[1:(s1 + 1)], 0, 0, m[2:(s1 + 2)], 0, 0),
+            cbind(m[1:(s1 + 1)], 0, 0, 0, 0, m[2:(s1 + 2)], 0, 0, 0, 0),
             cbind(
                 2 * a * m[1:(s2 + 1)] + 2 * m[2:(s2 + 2)] * b1,
                 m[1:(s2 + 1)],
                 0,
+                0,
+                0,
                 2 * a * m[2:(s2 + 2)],
                 m[3:(s2 + 3)],
+                0,
+                0,
                 0
             ),
             cbind(
@@ -149,20 +208,72 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NUL
                     3 * m[3:(s3 + 3)] * b2 + 3 * sigma_2 * m[1:(s3 + 1)],
                 3 * m[2:(s3 + 2)] * b1 + 3 * a * m[1:(s3 + 1)],
                 m[1:(s3 + 1)],
+                0,
+                0,
                 3 * m[2:(s3 + 2)] * (a^2 + sigma_2),
                 3 * a * m[3:(s3 + 3)],
-                m[4:(s3 + 4)]
+                m[4:(s3 + 4)],
+                0,
+                0
+            ),
+            cbind(
+                (4 * a^3 + 12 * sigma_2 * a + 4 * sigma_3) * m[1:(s4 + 1)] +
+                    12 * (a^2 + sigma_2)* m[2:(s4 + 2)] * b1 +
+                    12 * a * m[3:(s4 + 3)] * b2 +
+                    4 * m[4:(s4 + 4)] * b3,
+                6 * a^2 * m[1:(s4 + 1)] +
+                    12 * a * m[2:(s4 + 2)] * b1 +
+                    6 * m[3:(s4 + 3)] * b2,
+                4 * a * m[1:(s4 + 1)] + 4 * m[2:(s4 + 2)] * b1,
+                m[1:(s4 + 1)],
+                0,
+                4 * m[2:(s4 + 2)] * (a^3 + 3 * a * sigma_2 + sigma_3),
+                6 * m[3:(s4 + 3)] * (a^2 + sigma_2),
+                4 * a * m[4:(s4 + 4)],
+                m[5:(s4 + 5)],
+                0
+            ),
+            cbind(
+                (5 * a^4 + 30 * a^2 * sigma_2 + 20 * a * sigma_3 + 5 * sigma_4) * m[1:(s5 + 1)] +
+                    5 * (4 * a^3 + 12 * a * sigma_2 + 4 * sigma_3) * m[2:(s5 + 2)] * b1 +
+                    30 * (a^2 + sigma_2) * m[3:(s5 + 3)] * b2 +
+                    20 * a * m[4:(s5 + 4)] * b3 +
+                    5 * m[5:(s5 + 5)] * b4,
+                10 * a^3 * m[1:(s5 + 1)] +
+                    30 * a^2 * m[2:(s5 + 2)] * b1 +
+                    30 * a * m[3:(s5 + 3)] * b2 +
+                    10 * m[4:(s5 + 4)] * b3,
+                10 * a^2 * m[1:(s5 + 1)] +
+                    20 * a * m[2:(s5 + 2)] * b1 +
+                    10 * m[3:(s5 + 3)] * b2,
+                5 * a * m[1:(s5 + 1)] +
+                    5 * m[2:(s5 + 2)] * b1,
+                m[1:(s5 + 1)],
+                5 * m[2:(s5 + 2)] * (a^4 + 6 * a^2 * sigma_2 + 4 * a * sigma_3 + sigma_4),
+                10 * m[3:(s5 + 3)] * (a^ 3 + 3 * a * sigma_2 + sigma_3),
+                10 * m[4:(s5 + 4)] * (a^2 + sigma_2),
+                5 * a * m[5:(s5 + 5)],
+                m[6:(s5 + 6)]
             )
         )
 
-        jac_b <- matrix(c(1, 0, 0, 0, 0, 0,
-                          0, 1, 0, 0, 0, 0,
-                          0, 0, 1, 0, 0, 0,
-                          0, 0, 0, b_L - b_H, p , 1-p,
-                          0, 0, 0, b_L^2 - b_H^2, 2 * p * b_L , 2 * (1 - p) * b_H,
-                          0, 0, 0, b_L^3 - b_H^3, 3 * p * b_L^2, 3 * (1 - p) * b_H^2),
-                        6, 6, byrow = TRUE)
-
+        jac_b <- rbind(
+            cbind(
+                diag(5), matrix(0, 5, 5)
+            ),
+            cbind(
+                matrix(0, 5, 5),
+                matrix(
+                    c(
+                        b_L - b_H, b_M - b_H, p_L, p_M, 1 - p_L - p_M,
+                        b_L^2 - b_H^2, b_M^2 - b_H^2, 2 * p_L * b_L, 2 * p_M * b_M, 2 * (1 - p_L - p_M) * b_H,
+                        b_L^3 - b_H^3, b_M^3 - b_H^3, 3 * p_L * b_L^2, 3 * p_M * b_M^2, 3 * (1 - p_L - p_M) * b_H^2,
+                        b_L^4 - b_H^4, b_M^4 - b_H^4, 4 * p_L * b_L^3, 4 * p_M * b_M^3, 4 * (1 - p_L - p_M) * b_H^3,
+                        b_L^5 - b_H^5, b_M^5 - b_H^5, 5 * p_L * b_L^4, 5 * p_M * b_M^4, 5 * (1 - p_L - p_M) * b_H^4
+                    ), 5, 5, byrow = TRUE
+                )
+            )
+        )
         jac_m %*% jac_b
     }
 
@@ -185,16 +296,30 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NUL
         c(2 * t(jac_h_fn(theta)) %*% W %*% h_fn_value)
     }
 
+    eval_g_ineq <- function(theta){
+        return(
+            list(
+                "constraints" = x[6] + x[7] - 1,
+                "jacobian"=c(1, 1)
+            )
+        )
+    }
+
     # OPTIMIZATION
+    local_opts <- list("algorithm" = "NLOPT_LD_MMA",
+                       "xtol_rel"  = 1.0e-10)
     opts <- list(
-        "algorithm" = "NLOPT_LD_LBFGS",
-        "xtol_rel" = 1.0e-8
+        "algorithm" = "NLOPT_LD_AUGLAG",
+        "xtol_rel" = 1.0e-15,
+        "maxeval" = 1e6,
+        "local_opts" = local_opts
     )
     nlopt_sol <- nloptr::nloptr(theta_init,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
                                 lb = c(-Inf, 0, -Inf, 0, -Inf, -Inf),
                                 ub = c(Inf, Inf, Inf, 1, Inf, Inf),
+                                eval_g_ineq = eval_g_ineq,
                                 opts = opts
     )
     theta_hat <- nlopt_sol$solution
@@ -206,12 +331,18 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NUL
     D <- jac_h_fn(theta_hat)
 
     # Compute the moments
-    p_hat <- theta_hat[4]
-    b_L_hat <- theta_hat[5]
-    b_H_hat <- theta_hat[6]
-    Eb_1_hat <- p_hat * b_L_hat + (1 - p_hat) * b_H_hat
-    Eb_2_hat <- p_hat * b_L_hat^2 + (1 - p_hat) * b_H_hat^2
-    Eb_3_hat <- p_hat * b_L_hat^3 + (1 - p_hat) * b_H_hat^3
+    p_L_hat <- theta_hat[6]
+    p_M_hat <- theta_hat[7]
+    p_H_hat <- 1 - theta_hat[6] - theta_hat[7]
+    b_L_hat <- theta_hat[8]
+    b_M_hat <- theta_hat[9]
+    b_H_hat <- theta_hat[10]
+
+    Eb_1_hat <- p_L_hat * b_L_hat + p_M_hat * b_M_hat + p_H_hat * b_H_hat
+    Eb_2_hat <- p_L_hat * b_L_hat^2 + p_M_hat * b_M_hat^2 + p_H_hat * b_H_hat^2
+    Eb_3_hat <- p_L_hat * b_L_hat^3 + p_M_hat * b_M_hat^3 + p_H_hat * b_H_hat^3
+    Eb_4_hat <- p_L_hat * b_L_hat^4 + p_M_hat * b_M_hat^4 + p_H_hat * b_H_hat^4
+    Eb_5_hat <- p_L_hat * b_L_hat^5 + p_M_hat * b_M_hat^5 + p_H_hat * b_H_hat^5
 
     # Compute the variance-covariance matrix of the estimated parameters
     # ERROR CATCHING
@@ -237,14 +368,6 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NUL
             sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         }
-
-        H_grad_vec <- t(c(
-            0, 0, 0,
-            ((b_H_hat - b_L_hat)^2*(- b_H_hat^2*p_hat^2 + 2*b_H_hat^2*p_hat - b_H_hat^2 + b_L_hat^2*p_hat^2))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
-            -(2*b_H_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
-            (2*b_L_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2
-        ))
-        kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
     }
 
 
@@ -254,15 +377,13 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 4 , weight_mat = NUL
     }
 
     list(
-        theta_b = theta_hat[4:6],
-        theta_m = c(Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
-        theta_u = theta_hat[2:3],
+        theta_b = theta_hat[6:11],
+        theta_m = c(Eb_1_hat, Eb_2_hat - Eb_1_hat^2, Eb_2_hat, Eb_3_hat),
+        theta_u = theta_hat[2:5],
         theta_se = sqrt(diag(V_theta)),
         gamma = gamma_hat,
         gamma_se = gamma_se_hat,
-        V_theta = V_theta,
-        kappa2 = Eb_1_hat^2 / Eb_2_hat,
-        kappa2_se = kappa2_se
+        V_theta = V_theta
     )
 }
 
