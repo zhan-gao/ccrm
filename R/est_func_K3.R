@@ -645,84 +645,118 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6) {
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         }
 
-        kappa2 <- theta_hat[5] - theta_hat[4]^2
-        H_grad_vec <- t(c(0, 0, 0, -2 * theta_hat[4], 1, 0))
-        kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
+        # kappa2 <- theta_hat[5] - theta_hat[4]^2
+        # H_grad_vec <- t(c(0, 0, 0, -2 * theta_hat[4], 1, 0))
+        # kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
     }
 
     list(
         theta = theta_hat,
         theta_se = sqrt(diag(V_theta)),
-        V_theta = V_theta,
-        weight_mat = W,
-        kappa2 = kappa2,
-        kappa2_se = kappa2_se
+        weight_mat = W
     )
 }
 
-# ----------Second step estimation----------
-init_est_b <- function(x,
-                       y,
-                       z,
-                       s_max) {
+###
+### Up to here....
+###
 
-    moment_est_result <- moment_est_gmm(x, y, z, s_max)
+
+# ----------Second step estimation----------
+init_est_b_3 <- function(x,
+                         y,
+                         z,
+                         s_max = 6) {
+
+    moment_est_result <- moment_est_gmm_3(x, y, z, s_max)
     moment_est_result_parameter <- moment_est_result$theta
 
     # first_step_est: estimated parameters only
-    # alpha, sigma_2, Eb_1, Eb_2, b3
+    # theta = (alpha, sigma^2, E(u_i^3), E(u_i^4), E(u_i^5), Eb_1, Eb_2, Eb_3, Eb_4, Eb_5)
+
     a <- moment_est_result_parameter[1]
     sigma_2 <- moment_est_result_parameter[2]
     sigma_3 <- moment_est_result_parameter[3]
-    b1 <- moment_est_result_parameter[4]
-    b2 <- moment_est_result_parameter[5]
-    b3 <- moment_est_result_parameter[6]
-
+    sigma_4 <- moment_est_result_parameter[4]
+    sigma_5 <- moment_est_result_parameter[5]
+    b1 <- moment_est_result_parameter[6]
+    b2 <- moment_est_result_parameter[7]
+    b3 <- moment_est_result_parameter[8]
+    b4 <- moment_est_result_parameter[9]
+    b5 <- moment_est_result_parameter[10]
 
     f_fn <- function(theta) {
+
+        p_L <- theta[1]
+        p_M <- theta[2]
+        p_H <- theta[3]
+        b_L <- theta[4]
+        b_M <- theta[5]
+        b_H <- theta[6]
+
         f_value <- c(
-            theta[1] * theta[2] + (1 - theta[1]) * theta[3],
-            theta[1] * theta[2]^2 + (1 - theta[1]) * theta[3]^2,
-            theta[1] * theta[2]^3 + (1 - theta[1]) * theta[3]^3
-        ) - c(b1, b2, b3)
+            p_L + p_M + p_H,
+            p_L * b_L + p_M * b_M + p_H * b_H ,
+            p_L * b_L^2 + p_M * b_M^2 + p_H * b_H^2,
+            p_L * b_L^3 + p_M * b_M^3 + p_H * b_H^3,
+            p_L * b_L^4 + p_M * b_M^4 + p_H * b_H^4,
+            p_L * b_L^5 + p_M * b_M^5 + p_H * b_H^5
+        ) - c(1, b1, b2, b3, b4, b5)
         f_value
     }
     jac_f_fn <- function(theta) {
-        jac_mat <- matrix(c(
-            theta[2] - theta[3], theta[1], 1 - theta[1],
-            theta[2]^2 - theta[3]^2, 2 * theta[1] * theta[2], 2 * (1 - theta[1]) * theta[3],
-            theta[2]^3 - theta[3]^3, 3 * theta[1] * theta[2]^2, 3 * (1 - theta[1]) * theta[3]^2
-        ),
-        3, 3,
-        byrow = TRUE
+        p_L <- theta[1]
+        p_M <- theta[2]
+        p_H <- theta[3]
+        b_L <- theta[4]
+        b_M <- theta[5]
+        b_H <- theta[6]
+
+        jac_mat <- matrix(
+            c(
+                1, 1, 1, 0, 0, 0,
+                b_L, b_M, b_H, p_L, p_M, p_H,
+                b_L^2, b_M^2, b_H^2, 2 * p_L * b_L, 2 * p_M * b_M, 2 * p_H * b_H,
+                b_L^3, b_M^3, b_H^3, 3 * p_L * b_L^2, 3 * p_M * b_M^2, 3 * p_H * b_H^2,
+                b_L^4, b_M^4, b_H^4, 4 * p_L * b_L^3, 4 * p_M * b_M^3, 4 * p_H * b_H^3,
+                b_L^5, b_M^5, b_H^5, 5 * p_L * b_L^4, 5 * p_M * b_M^4, 5 * p_H * b_H^4
+            ),
+            6, 6,
+            byrow = TRUE
         )
         jac_mat
     }
+
     g_fn <- function(theta) {
         # t(f) * f
         f_value <- f_fn(theta)
         sum(f_value^2)
     }
+
     grad_g_fn <- function(theta) {
         grad_g <- 2 * t(jac_f_fn(theta)) %*% f_fn(theta)
         as.numeric(grad_g)
     }
 
     gap <- initial_value_gap(b1, b2)
-    theta_start <- c(0.5, b1 - gap, b1 + gap)
+    theta_start <- c(0.25, 0.5, 0.25, b1 - gap, b1, b1 + gap)
 
     opts <- list(
         "algorithm" = "NLOPT_LD_LBFGS",
-        "xtol_rel" = 1.0e-8
+        "xtol_rel" = 1.0e-15,
+        "maxeval" = 1e6
     )
-    nlopt_sol <- nloptr::nloptr(theta_start,
-                                eval_f = g_fn,
-                                eval_grad_f = grad_g_fn,
-                                lb = c(0, -Inf, -Inf),
-                                ub = c(1, Inf, Inf),
-                                opts = opts
+
+    nlopt_sol <- nloptr::nloptr(
+        theta_start,
+        eval_f = g_fn,
+        eval_grad_f = grad_g_fn,
+        lb = c(0, 0, 0, -Inf, -Inf, -Inf),
+        ub = c(1, 1, 1,  Inf, Inf, Inf),
+        # eval_g_eq = eval_g_eq,
+        opts = opts
     )
     theta_hat <- nlopt_sol$solution
 
-    c(a, sigma_2, sigma_3, theta_hat, b1, b2, b3)
+    c(a, sigma_2, sigma_3, sigma_4, sigma_5, theta_hat, b1, b2, b3, b4, b5)
 }

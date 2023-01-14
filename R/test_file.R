@@ -43,7 +43,8 @@ generate_data_vanilla_3 <- function(n, a, b, p, chisq_df = 2) {
     return(cbind(y, x))
 }
 
-n <- 1000000
+set.seed(10000)
+n <- 100000
 a <- 0.5
 b <- c(1, 2, 3)
 p <- c(0, 0.25, 0.75)
@@ -55,8 +56,43 @@ sapply(1:5, function(x){
     sum(prop * (b^x))
 })
 res <- moment_est_3(x, y)
-res[c(1, 6:10)]
+res
 
+# res_gmm <- moment_est_gmm_3(x, y, NULL)$theta
+# res_gmm[6:10]
+# moment_est_result_parameter <- res_gmm
+# b1 <- moment_est_result_parameter[6]
+# b2 <- moment_est_result_parameter[7]
+# b3 <- moment_est_result_parameter[8]
+# b4 <- moment_est_result_parameter[9]
+# b5 <- moment_est_result_parameter[10]
+# #
+# b1 <- 2
+# b2 <- 4.5
+# b3 <- 11
+# b4 <- 28.5
+# b5 <- 77
+
+# init_est_b_3(x, y, NULL)[6:11]
+
+# M <- matrix(
+#     c(1, b1, b2, b1, b2, b3, b2, b3, b4),
+#     3, 3, byrow = TRUE
+# )
+# #
+# D <- diag(c(1, -1, 1))
+# #
+# b_star <- solve(M %*% D) %*% c(b3, b4, b5) * c(-1, 1, -1)
+# zz <-  polyroot(c(b_star, 1))
+# zz <- Re(zz)
+# #
+# #
+# solve(matrix(
+#     c(
+#         zz[1], zz[2], zz[3], zz[1]^2, zz[2]^2, zz[3]^2, zz[1]^3, zz[2]^3, zz[3]^3
+#     ), 3, 3, byrow = TRUE
+# ), c(b1, b2, b3))
+#
 
 #
 #
