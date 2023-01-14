@@ -5,6 +5,7 @@
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
 #' @param weight_mat
+#' @param second_step
 #'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
@@ -15,7 +16,7 @@
 #'
 #' @export
 #'
-ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL) {
+ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL, second_step = TRUE) {
 
     n <- length(x)
 
@@ -186,18 +187,51 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
     }
 
     # OPTIMIZATION
+    eval_g_ineq <- function(theta) {
+        list(
+            "constraints" = c(theta[5] - theta[6]),
+            "jacobian"= c(0, 0, 0, 0, 1, -1)
+        )
+    }
+
+    # opts <- list(
+    #     "algorithm" = "NLOPT_LD_LBFGS",
+    #     "xtol_rel" = 1.0e-8
+    # )
+    local_opts <- list("algorithm" = "NLOPT_LD_MMA",
+                       "xtol_rel"  = 1.0e-10)
     opts <- list(
-        "algorithm" = "NLOPT_LD_LBFGS",
-        "xtol_rel" = 1.0e-8
+        "algorithm" = "NLOPT_LD_AUGLAG",
+        "xtol_rel" = 1.0e-15,
+        "maxeval" = 1e6,
+        "local_opts" = local_opts
     )
+
     nlopt_sol <- nloptr::nloptr(theta_init,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
                                 lb = c(-Inf, 0, -Inf, 0, -Inf, -Inf),
                                 ub = c(Inf, Inf, Inf, 1, Inf, Inf),
+                                eval_g_ineq = eval_g_ineq,
                                 opts = opts
     )
     theta_hat <- nlopt_sol$solution
+
+    # Two-step GMM
+    if(second_step) {
+        h_mat <- h_moment_mat_fn(theta_hat)
+        h_mean <- colMeans(h_mat)
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        nlopt_sol <- nloptr::nloptr(theta_hat,
+                                    eval_f = q_fn,
+                                    eval_grad_f = grad_q_fn,
+                                    lb = c(-Inf, 0, -Inf, 0, -Inf, -Inf),
+                                    ub = c(Inf, Inf, Inf, 1, Inf, Inf),
+                                    eval_g_ineq = eval_g_ineq,
+                                    opts = opts
+        )
+        theta_hat <- nlopt_sol$solution
+    }
 
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
@@ -334,10 +368,11 @@ moment_est <- function(x, y) {
 #' @param y
 #' @param z
 #' @param s_max
+#' @param second_step
 #'
 #' @export
 #'
-moment_est_gmm <- function(x, y, z, s_max) {
+moment_est_gmm <- function(x, y, z, s_max, second_step = TRUE) {
 
     # with intercept, over-identification, GMM framework
 
@@ -492,6 +527,21 @@ moment_est_gmm <- function(x, y, z, s_max) {
     )
     theta_hat <- nlopt_sol$solution
 
+    # Two-step GMM
+    if(second_step) {
+        h_mat <- h_moment_mat_fn(theta_hat)
+        h_mean <- colMeans(h_mat)
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        nlopt_sol <- nloptr::nloptr(theta_hat,
+                                eval_f = q_fn,
+                                eval_grad_f = grad_q_fn,
+                                lb = c(-Inf, 0, -Inf, -Inf, 0, -Inf),
+                                ub = c(Inf, Inf, Inf, Inf, Inf, Inf),
+                                opts = opts
+        )
+        theta_hat <- nlopt_sol$solution
+    }
+
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
     h_mean <- colMeans(h_mat)
@@ -588,15 +638,32 @@ init_est_b <- function(x,
     gap <- initial_value_gap(b1, b2)
     theta_start <- c(0.5, b1 - gap, b1 + gap)
 
+    eval_g_ineq <- function(theta) {
+        list(
+            "constraints" = c(theta[2] - theta[3]),
+            "jacobian"= c(0, 1, -1)
+        )
+
+    }
+
+    # opts <- list(
+    #     "algorithm" = "NLOPT_LD_LBFGS",
+    #     "xtol_rel" = 1.0e-8
+    # )
+    local_opts <- list("algorithm" = "NLOPT_LD_MMA",
+                       "xtol_rel"  = 1.0e-10)
     opts <- list(
-        "algorithm" = "NLOPT_LD_LBFGS",
-        "xtol_rel" = 1.0e-8
+        "algorithm" = "NLOPT_LD_AUGLAG",
+        "xtol_rel" = 1.0e-15,
+        "maxeval" = 1e6,
+        "local_opts" = local_opts
     )
     nlopt_sol <- nloptr::nloptr(theta_start,
                                 eval_f = g_fn,
                                 eval_grad_f = grad_g_fn,
                                 lb = c(0, -Inf, -Inf),
                                 ub = c(1, Inf, Inf),
+                                eval_g_ineq = eval_g_ineq,
                                 opts = opts
     )
     theta_hat <- nlopt_sol$solution

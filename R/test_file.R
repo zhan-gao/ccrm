@@ -21,7 +21,24 @@
 #
 #     return(cbind(y, x, z))
 # }
-
+#
+# R <- 1000
+# res_mat <- array(0, c(R, 3, 3))
+# for(r in 1:R) {
+#
+#     d <- generate_data_hetero_cov(1000, 0.5, c(1, 2), 0.5, c(1,1))
+#     x <- d[, 'x']
+#     y <- d[, 'y']
+#     z <- d[, -c(1, 2)]
+#
+#     res_mat[r, ,1] <- ccrm_est_K2(x, y, z)$theta_b
+#     res_mat[r, ,2] <- ccrm_est_K2(x, y, z, second_step = TRUE, weight_update = FALSE)$theta_b
+#     res_mat[r, ,3] <- ccrm_est_K2(x, y, z, second_step = FALSE)$theta_b
+# }
+#
+# sqrt(colMeans((res_mat[, , 1] - matrix(c(0.5, 1, 2), R, 3, byrow = TRUE))^2))
+# sqrt(colMeans((res_mat[, , 2] - matrix(c(0.5, 1, 2), R, 3, byrow = TRUE))^2))
+# sqrt(colMeans((res_mat[, , 3] - matrix(c(0.5, 1, 2), R, 3, byrow = TRUE))^2))
 
 generate_data_vanilla_3 <- function(n, a, b, p, chisq_df = 2) {
     # K = 3

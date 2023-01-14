@@ -5,6 +5,7 @@
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
 #' @param weight_mat
+#' @param second_step
 #'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
@@ -15,7 +16,7 @@
 #'
 #' @export
 #'
-ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NULL) {
+ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NULL, second_step = TRUE) {
 
     n <- length(x)
 
@@ -26,8 +27,8 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     s5 <- s_max - 5
 
     if (is.null(theta_init)) {
-        theta_temp <- init_est_b_3(x, y, z, s_max)
-        theta_init <- theta_temp[1:10]
+        res_temp <- init_est_b_3(x, y, z, s_max)
+        theta_init <- res_temp$theta_hat
     }
 
     # OLS estimate and replace gamma by gamma_hat
@@ -303,9 +304,9 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
                                   theta[9] - theta[10],
                                   theta[8] - theta[10]),
                 "jacobian"= rbind(c(rep(0, 5), 1, 1, 0, 0, 0),
-                                  c(rep(0, 5), 0, 0, 1, 1, 0),
-                                  c(rep(0, 5), 0, 0, 0, 1, 1),
-                                  c(rep(0, 5), 0, 0, 1, 0, 1))
+                                  c(rep(0, 5), 0, 0, 1, -1, 0),
+                                  c(rep(0, 5), 0, 0, 0, 1, -1),
+                                  c(rep(0, 5), 0, 0, 1, 0, -1))
             )
         )
     }
@@ -329,15 +330,27 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     )
     theta_hat <- nlopt_sol$solution
 
+    # Two-step GMM
+    if (second_step) {
+        h_mat <- h_moment_mat_fn(theta_hat)
+        h_mean <- colMeans(h_mat)
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        nlopt_sol <- nloptr::nloptr(theta_hat,
+                                eval_f = q_fn,
+                                eval_grad_f = grad_q_fn,
+                                lb = c(-Inf, 0, -Inf, 0, -Inf, 0, 0, -Inf, -Inf, -Inf),
+                                ub = c(Inf, Inf, Inf, Inf, Inf, 1, 1, Inf, Inf, Inf),
+                                eval_g_ineq = eval_g_ineq,
+                                opts = opts
+        )
+        theta_hat <- nlopt_sol$solution
+    }
+
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
     h_mean <- colMeans(h_mat)
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
     D <- jac_h_fn(theta_hat)
-
-    ###############################
-    # Seems second step can help with the estimation...
-    ###############################
 
     # Compute the moments
     p_L_hat <- theta_hat[6]
@@ -387,7 +400,8 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
 
     list(
         theta_b = theta_hat[6:11],
-        theta_m = c(Eb_1_hat, Eb_2_hat - Eb_1_hat^2, Eb_2_hat, Eb_3_hat),
+        theta_m = c(Eb_1_hat, Eb_2_hat - Eb_1_hat^2, Eb_2_hat, Eb_3_hat, Eb_4_hat, Eb_5_hat),
+        theta_m_gmm = res_temp$moment_hat,
         theta_u = theta_hat[2:5],
         theta_se = sqrt(diag(V_theta)),
         gamma = gamma_hat,
@@ -496,10 +510,11 @@ moment_est_3 <- function(x, y) {
 #' @param y
 #' @param z
 #' @param s_max
+#' @param second_step
 #'
 #' @export
 #'
-moment_est_gmm_3 <- function(x, y, z, s_max = 6) {
+moment_est_gmm_3 <- function(x, y, z, s_max = 6, second_step = TRUE) {
 
     # with intercept, over-identification, GMM framework
 
@@ -732,7 +747,6 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6) {
         c(2 * t(jac_h_fn(theta)) %*% W %*% h_fn_value)
     }
 
-
     # OPTIMIZATION
     opts <- list(
         "algorithm" = "NLOPT_LD_LBFGS",
@@ -746,6 +760,22 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6) {
                                 opts = opts
     )
     theta_hat <- nlopt_sol$solution
+
+
+    # Two-step GMM
+    if(second_step) {
+        h_mat <- h_moment_mat_fn(theta_hat)
+        h_mean <- colMeans(h_mat)
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        nlopt_sol <- nloptr::nloptr(theta_hat,
+                                eval_f = q_fn,
+                                eval_grad_f = grad_q_fn,
+                                lb = c(-Inf, 0, -Inf, 0, -Inf, -Inf, 0, -Inf, 0, -Inf),
+                                ub = c(Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf, Inf),
+                                opts = opts
+        )
+        theta_hat <- nlopt_sol$solution
+    }
 
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
@@ -875,9 +905,9 @@ init_est_b_3 <- function(x,
                                   theta[4] - theta[5],
                                   theta[3] - theta[5]),
                 "jacobian"= rbind(c(1, 1, 0, 0, 0),
-                                  c(0, 0, 1, 1, 0),
-                                  c(0, 0, 0, 1, 1),
-                                  c(0, 0, 1, 0, 1))
+                                  c(0, 0, 1, -1, 0),
+                                  c(0, 0, 0, 1, -1),
+                                  c(0, 0, 1, 0, -1))
             )
         )
     }
@@ -890,11 +920,6 @@ init_est_b_3 <- function(x,
         "maxeval" = 1e6,
         "local_opts" = local_opts
     )
-    # opts <- list(
-    #     "algorithm" = "NLOPT_LD_LBFGS",
-    #     "xtol_rel" = 1.0e-15,
-    #     "maxeval" = 1e6
-    # )
 
     nlopt_sol <- nloptr::nloptr(
         theta_start,
@@ -906,6 +931,10 @@ init_est_b_3 <- function(x,
         opts = opts
     )
     theta_hat <- nlopt_sol$solution
-
-    c(a, sigma_2, sigma_3, sigma_4, sigma_5, theta_hat, b1, b2, b3, b4, b5)
+    
+    list(
+        theta_hat = theta_hat,
+        moment_hat = c(b1, b2, b3, b4, b5), # From GMM
+        moment_u_hat = c(, sigma_2, sigma_3, sigma_4, sigma_5)
+    )
 }
