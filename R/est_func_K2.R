@@ -669,10 +669,10 @@ init_est_b <- function(x,
     )
     theta_hat <- nlopt_sol$solution
 
-    c(a, sigma_2, sigma_3, theta_hat, b1, b2, b3)
     list(
         theta_hat = theta_hat,
         moment_hat = c(b1, b2, b3), # From GMM
+        moment_se = moment_est_result$theta_se,
         moment_u_hat = c(a, sigma_2, sigma_3),
         weight_mat = moment_est_result$weight_mat
     )
