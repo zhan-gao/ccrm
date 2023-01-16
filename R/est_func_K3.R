@@ -393,7 +393,7 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6, weight_mat = NULL
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         } else {
             L_mat <- diag(ncol(w))[-c(1, 2), ]
-            G_gamma <- -rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
                              2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
                              3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z,
                              4 * t(mxy3_mat[, 1:(s4 + 1)]) %*% z,
@@ -824,7 +824,7 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6, second_step = TRUE) {
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         } else {
             L_mat <- diag(ncol(w))[-c(1, 2), ]
-            G_gamma <- - rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
                              2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
                              3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z,
                              4 * t(mxy3_mat[, 1:(s4 + 1)]) %*% z,

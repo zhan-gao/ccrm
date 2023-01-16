@@ -263,7 +263,7 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         } else {
             L_mat <- diag(ncol(w))[-c(1, 2), ]
-            G_gamma <- - rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
                              2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
                              3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z) / n
             meat_mat <- h_mat + t(G_gamma %*% L_mat %*% solve(Q_ww) %*% t(w * xi_hat))
