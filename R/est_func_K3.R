@@ -16,7 +16,7 @@
 #'
 #' @export
 #'
-ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NULL, second_step = TRUE) {
+ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6, weight_mat = NULL, second_step = TRUE) {
 
     n <- length(x)
 
@@ -28,7 +28,8 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
 
     if (is.null(theta_init)) {
         res_temp <- init_est_b_3(x, y, z, s_max)
-        theta_init <- res_temp$theta_hat
+        theta_init <- c(res_temp$moment_u_hat, res_temp$theta_hat)
+        weight_mat <- res_temp$weight_mat
     }
 
     # OLS estimate and replace gamma by gamma_hat
@@ -334,7 +335,12 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     if (second_step) {
         h_mat <- h_moment_mat_fn(theta_hat)
         h_mean <- colMeans(h_mat)
-        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        if (!check_inverse((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) {
+            warning("Moment function ill-posed.")
+            W  <- weight_mat
+        } else {
+            W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        }
         nlopt_sol <- nloptr::nloptr(theta_hat,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
@@ -349,7 +355,12 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
     h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    if (!check_inverse((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) {
+        warning("Moment function ill-posed.")
+        W  <- weight_mat
+    } else {
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    }
     D <- jac_h_fn(theta_hat)
 
     # Compute the moments
@@ -382,9 +393,11 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         } else {
             L_mat <- diag(ncol(w))[-c(1, 2), ]
-            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+            G_gamma <- -rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
                              2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
-                             3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z) / n
+                             3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z,
+                             4 * t(mxy3_mat[, 1:(s4 + 1)]) %*% z,
+                             5 * t(mxy4_mat[, 1:(s5 + 1)]) %*% z) / n
             meat_mat <- h_mat + t(G_gamma %*% L_mat %*% solve(Q_ww) %*% t(w * xi_hat))
             V_meat_mat <- t(meat_mat) %*% (meat_mat) / n
             sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
@@ -399,7 +412,7 @@ ccrm_est_K3 <- function(x, y, z, theta_init = NULL, s_max = 6 , weight_mat = NUL
     }
 
     list(
-        theta_b = theta_hat[6:11],
+        theta_b = theta_hat[6:10],
         theta_m = c(Eb_1_hat, Eb_2_hat - Eb_1_hat^2, Eb_2_hat, Eb_3_hat, Eb_4_hat, Eb_5_hat),
         theta_m_gmm = res_temp$moment_hat,
         theta_u = theta_hat[2:5],
@@ -735,7 +748,12 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6, second_step = TRUE) {
     theta_init <- moment_est_3(x, y)
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    if (!check_inverse((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) {
+        warning("Moment function ill-posed.")
+        W  <- diag(length(h_mean))
+    } else {
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    }
 
     q_fn <- function(theta) {
         h_fn_value <- h_moment_fn(theta)
@@ -766,7 +784,12 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6, second_step = TRUE) {
     if(second_step) {
         h_mat <- h_moment_mat_fn(theta_hat)
         h_mean <- colMeans(h_mat)
-        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        if (!check_inverse((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) {
+            warning("Moment function ill-posed.")
+            W  <- diag(length(h_mean))
+        } else {
+            W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+        }
         nlopt_sol <- nloptr::nloptr(theta_hat,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
@@ -780,7 +803,12 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6, second_step = TRUE) {
     # test statistics
     h_mat <- h_moment_mat_fn(theta_hat)
     h_mean <- colMeans(h_mat)
-    W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    if (!check_inverse((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))) {
+        warning("Moment function ill-posed.")
+        W  <- diag(length(h_mean))
+    } else {
+        W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
+    }
     D <- jac_h_fn(theta_hat)
 
     # Compute the variance-covariance matrix of the estimated parameters
@@ -796,9 +824,11 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6, second_step = TRUE) {
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         } else {
             L_mat <- diag(ncol(w))[-c(1, 2), ]
-            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+            G_gamma <- - rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
                              2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
-                             3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z) / n
+                             3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z,
+                             4 * t(mxy3_mat[, 1:(s4 + 1)]) %*% z,
+                             5 * t(mxy4_mat[, 1:(s5 + 1)]) %*% z) / n
             meat_mat <- h_mat + t(G_gamma %*% L_mat %*% solve(Q_ww) %*% t(w * xi_hat))
             V_meat_mat <- t(meat_mat) %*% (meat_mat) / n
             sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
@@ -817,9 +847,6 @@ moment_est_gmm_3 <- function(x, y, z, s_max = 6, second_step = TRUE) {
     )
 }
 
-###
-### Up to here....
-###
 
 
 # ----------Second step estimation----------
@@ -931,10 +958,11 @@ init_est_b_3 <- function(x,
         opts = opts
     )
     theta_hat <- nlopt_sol$solution
-    
+
     list(
         theta_hat = theta_hat,
         moment_hat = c(b1, b2, b3, b4, b5), # From GMM
-        moment_u_hat = c(, sigma_2, sigma_3, sigma_4, sigma_5)
+        moment_u_hat = c(a, sigma_2, sigma_3, sigma_4, sigma_5),
+        weight_mat = moment_est_result$weight_mat
     )
 }

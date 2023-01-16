@@ -4,7 +4,6 @@
 #' @param y dependent variable (N-by-1)
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
-#' @param weight_mat
 #' @param second_step
 #'
 #' @return A list contains estimated coefficients and inferential statistics
@@ -26,7 +25,8 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
 
     if (is.null(theta_init)) {
         theta_temp <- init_est_b(x, y, z, s_max)
-        theta_init <- theta_temp[1:6]
+        theta_init <- c(theta_temp$moment_u_hat, theta_temp$theta_hat)
+        weight_mat <- theta_temp$weight_mat
     }
 
     # OLS estimate and replace gamma by gamma_hat
@@ -263,7 +263,7 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         } else {
             L_mat <- diag(ncol(w))[-c(1, 2), ]
-            G_gamma <- rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
+            G_gamma <- - rbind(t(x_mat[, 1:(s1 + 1)]) %*% z,
                              2 * t(mxy1_mat[, 1:(s2 + 1)]) %*% z,
                              3 * t(mxy2_mat[, 1:(s3 + 1)]) %*% z) / n
             meat_mat <- h_mat + t(G_gamma %*% L_mat %*% solve(Q_ww) %*% t(w * xi_hat))
@@ -290,6 +290,7 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
     list(
         theta_b = theta_hat[4:6],
         theta_m = c(Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
+        theta_m_gmm = theta_temp$moment_hat,
         theta_u = theta_hat[2:3],
         theta_se = sqrt(diag(V_theta)),
         gamma = gamma_hat,
@@ -669,4 +670,10 @@ init_est_b <- function(x,
     theta_hat <- nlopt_sol$solution
 
     c(a, sigma_2, sigma_3, theta_hat, b1, b2, b3)
+    list(
+        theta_hat = theta_hat,
+        moment_hat = c(b1, b2, b3), # From GMM
+        moment_u_hat = c(a, sigma_2, sigma_3),
+        weight_mat = moment_est_result$weight_mat
+    )
 }
