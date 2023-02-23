@@ -1,3 +1,37 @@
+# generate_data_binary <- function (n, # sample size
+#                                   a, # intercept
+#                                   b,
+#                                   gamma, # deterministic coefficient
+#                                   p,
+#                                   dgp_para = 2) {
+#
+#     chisq_df <- dgp_para
+#
+#     group_id <- as.integer(runif(n) > p) + 1
+#     b0 <- b[group_id]
+#
+#     x_temp <- rbinom(n, 1, 0.4)
+#     x_value <- c(5, 6)
+#     x <- x_value[x_temp+1]
+#     sigma_i <- 0.5 * (1 + rchisq(n, df = 1))
+#     u <- rnorm(n, mean = 0, sd = sqrt(sigma_i))
+#
+#     y <- a + x * b0 + u
+#
+#     return(cbind(y, x))
+# }
+#
+# n <- 10000
+# gamma_0 <-  c(1, 1)
+# a <- 0.25
+# b <- c(1, 2)
+# p <- 0.5
+#
+# d <- generate_data_binary(n, a, b, gamma_0, p, 2)
+# y <- d[, 1]
+# x <- d[, 2]
+# z <- d[, -(1:2)]
+
 # generate_data_vanilla <- function (n, # sample size
 #                                    a, # intercept
 #                                    b,
