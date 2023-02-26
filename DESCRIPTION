@@ -1,14 +1,19 @@
 Package: ccrm
-Title: Package for estimation of categorical coefficient models (Gao and Pesaran, 2022).
+Title: Package for estimation of categorical coefficient regression models (Gao and Pesaran, 2023).
 Version: 0.0.1
 Authors@R: 
     person("Zhan", "Gao", , "zhangao@usc.edu", role = c("aut", "cre"))
-Description: estimation of categorical coefficient models (Gao and Pesaran, 2022).
+Description: estimation of categorical coefficient models (Gao and Pesaran, 2023).
 Imports:
     nloptr,
     Matrix,
-    abind
+    abind,
+    dplyr,
+    tidyr
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.1
+Depends: 
+    R (>= 2.10)
+LazyData: true
