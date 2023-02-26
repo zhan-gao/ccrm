@@ -21,6 +21,7 @@ A list contains estimated coefficients and inferential statistics
 \item{se}{Estimated  se for phi_hat}
 \item{y_tilde}{\eqn{y - z \gamma}}
 \item{xi_hat}{OLS residuals}
+\item{remove_intecept}{Save the parameter remove_intercept for future reference}
 }
 \description{
 OLS Estimation of \eqn{\phi} which consists of the first moment of \eqn{\beta_i}

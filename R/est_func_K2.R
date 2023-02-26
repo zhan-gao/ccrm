@@ -15,6 +15,7 @@
 #'
 #' @export
 #'
+#'
 ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL, second_step = TRUE) {
 
     n <- length(x)
@@ -300,10 +301,27 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
         kappa2_se = kappa2_se
     )
 }
+# ------------------------------------------------------------------------------
+# First step estimation by solving equations
+# ------------------------------------------------------------------------------
+#' Direct moment estimator using the identification equations
+#'
+#' @param x regressor (N-by-1)
+#' @param y dependent variable (N-by-p_x)
+#' @param z control variables (N-by-p_z)
+#' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
+#'
+#' @return A list contains
+#' \item{para_est}{estimated (a, sigma2, sigma3, b1, b2, b3) }
+#' \item{remove_intecept}{Save the parameter remove_intercept for future reference. = NA if z is not provided.}
+#'
+moment_est <- function(x, y, z = NULL, remove_intercept = TRUE) {
 
-# ----------First step estimation by solving equations----------
-moment_est <- function(x, y) {
-    n <- length(x)
+    if (!is.null(z)) {
+        y <- ols_est(x, y, z, remove_intercept)$y_tilde
+    } else {
+        remove_intercept = NA
+    }
 
     m1 <- mean(x)
     m2 <- mean(x^2)
@@ -339,7 +357,6 @@ moment_est <- function(x, y) {
     sigma_2 <- res_temp[1]
     b2 <- res_temp[2]
 
-
     # Third Moment
     a_mat <- matrix(c(
         1, m3,
@@ -356,10 +373,11 @@ moment_est <- function(x, y) {
     if (sigma_2 < 0) sigma_2 <- 0
     if (b2 < 0) b2 <- 0
 
-    c(a, sigma_2, sigma_3, b1, b2, b3)
+    list(
+        para_est = c(a, sigma_2, sigma_3, b1, b2, b3),
+        remove_intercept = remove_intercept
+    )
 }
-
-
 
 # ----------First step estimation GMM----------
 
@@ -652,10 +670,12 @@ init_est_b <- function(x,
     #     "xtol_rel" = 1.0e-8
     # )
     local_opts <- list("algorithm" = "NLOPT_LD_MMA",
-                       "xtol_rel"  = 1.0e-10)
+                       "xtol_rel"  = 1.0e-10,
+                       "ftol_rel" = 1.0e-15)
     opts <- list(
         "algorithm" = "NLOPT_LD_AUGLAG",
         "xtol_rel" = 1.0e-15,
+        "ftol_rel" = 1.0e-15,
         "maxeval" = 1e6,
         "local_opts" = local_opts
     )
@@ -669,8 +689,59 @@ init_est_b <- function(x,
     )
     theta_hat <- nlopt_sol$solution
 
+    #
+    # p_seq <- seq(0.05, 0.95, 0.01)
+    # num_p <- length(p_seq)
+    # obj_vec <- rep(NA, num_p)
+    # for (i in 1:num_p) {
+    #     theta_start[1] <- p_seq[i]
+    #     nlopt_sol <- nloptr::nloptr(theta_start,
+    #                                 eval_f = g_fn,
+    #                                 eval_grad_f = grad_g_fn,
+    #                                 lb = c(0, -Inf, -Inf),
+    #                                 ub = c(1, Inf, Inf),
+    #                                 eval_g_ineq = eval_g_ineq,
+    #                                 opts = opts
+    #     )
+    #     obj_vec[i] <- nlopt_sol$objective
+    # }
+    # print(p_seq[which.min(obj_vec)])
+    # print(obj_vec[which.min(obj_vec)])
+
     list(
         theta_hat = theta_hat,
+        moment_hat = c(b1, b2, b3), # From GMM
+        moment_se = moment_est_result$theta_se,
+        moment_u_hat = c(a, sigma_2, sigma_3),
+        weight_mat = moment_est_result$weight_mat
+    )
+}
+#-------------------
+init_est_b_direct <- function(x,
+                       y,
+                       z,
+                       s_max) {
+
+    moment_est_result <- moment_est_gmm(x, y, z, s_max)
+    moment_est_result_parameter <- moment_est_result$theta
+
+    # first_step_est: estimated parameters only
+    # alpha, sigma_2, Eb_1, Eb_2, b3
+    a <- moment_est_result_parameter[1]
+    sigma_2 <- moment_est_result_parameter[2]
+    sigma_3 <- moment_est_result_parameter[3]
+    b1 <- moment_est_result_parameter[4]
+    b2 <- moment_est_result_parameter[5]
+    b3 <- moment_est_result_parameter[6]
+
+    b_plus <- (b3 - b1 * b2) / (b2 - b1^2)
+    b_prod <- (b1 * b3 - b2^2) / (b2 - b1^2)
+    b_L <- (b_plus - sqrt(b_plus^2 - 4 * b_prod)) / 2
+    b_H <-  (b_plus + sqrt(b_plus^2 - 4 * b_prod)) / 2
+    p <- (b_H - b1) / (b_H - b_L)
+
+    list(
+        theta_hat = c(p, b_L, b_H),
         moment_hat = c(b1, b2, b3), # From GMM
         moment_se = moment_est_result$theta_se,
         moment_u_hat = c(a, sigma_2, sigma_3),
