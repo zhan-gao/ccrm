@@ -13,6 +13,7 @@
 #' \item{se}{Estimated  se for phi_hat}
 #' \item{y_tilde}{\eqn{y - z \gamma}}
 #' \item{xi_hat}{OLS residuals}
+#' \item{remove_intecept}{Save the parameter remove_intercept for future reference}
 #'
 #' @import Matrix
 #'
@@ -48,6 +49,7 @@ ols_est <- function(x, y, z, remove_intercept = TRUE) {
         phi = phi_hat,
         se = se_hat,
         y_tilde = y_tilde,
-        xi = xi_hat
+        xi = xi_hat,
+        remove_intercept = remove_intercept
     ))
 }
