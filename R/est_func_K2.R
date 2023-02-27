@@ -42,33 +42,27 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
     s2 <- min(x_supp - 1, s_max - 2)
     s3 <- min(x_supp - 1, s_max - 3)
 
-    if (is.null(theta_init)) {
-        theta_temp <- init_est_b(x, y, z, s_max)
-        theta_init <- c(theta_temp$moment_u_hat, theta_temp$theta_hat)
-        weight_mat <- theta_temp$weight_mat
+    # Initial estimates
+    gmm_res <- moment_est_gmm(x, y, z, s_max, theta_init, remove_intercept, iter_gmm)
+    if(gmm_res$kappa2 > 1) {
+        cat(
+            "Warning: the GMM estimate of the variance of beta is negative. \n",
+            "THe test-statistic for homogeneity is ", gmm_res$kappa2_tstat, "\n".
+            "The estimation will proceed, however, the results are not expected to be informative.\n"
+        )
+    }
+    init_est_b_res <- init_est_b(x, y, z, s_max, remove_intercept, iter_gmm, gmm_res)
+    if(is.null(theta_init)) {
+        theta_init <- c(gmm_res$theta_hat[1:3], init_est_b_res$theta_hat)
+        weight_mat <- gmm_res$weight_mat
     }
 
     # OLS estimate and replace gamma by gamma_hat
     if (!is.null(z)) {
-
-        # OLS
+        y <- gmm_res$init_est$ols_res$y_tilde
+        xi_hat <- gmm_res$init_est$ols_res$xi
         w <- cbind(1, x, z)
-        phi_hat <- solve(t(w) %*% w, t(w) %*% y)
-        # Residuals
-        xi_hat <- c(y - w %*% phi_hat)
-        # Variance and s.e.
-        Q_ww <- (t(w) %*% w) / n
-        D_hat <- Matrix::Diagonal(n)
-        diag(D_hat) <- xi_hat^2
-        V_wxi <- (t(w) %*% D_hat %*% w) / n
-        V_hat <- (solve(Q_ww) %*% V_wxi %*% solve(Q_ww)) / n
-        se_hat <- sqrt(Matrix::diag(V_hat))
-
-        gamma_hat <- phi_hat[-(1:2)]
-        y <- y - c(z %*% gamma_hat)
-
-        gamma_hat <- phi_hat[-2]
-        gamma_se_hat <- se_hat[-2]
+        Q_ww <- t(w) %*% w / n
     }
 
     # The following estimation is on y_tilde = a + x_i b_i + u_i
@@ -213,10 +207,6 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
         )
     }
 
-    # opts <- list(
-    #     "algorithm" = "NLOPT_LD_LBFGS",
-    #     "xtol_rel" = 1.0e-8
-    # )
     local_opts <- list("algorithm" = "NLOPT_LD_MMA",
                        "xtol_rel"  = 1.0e-10)
     opts <- list(
@@ -271,11 +261,10 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
     # If pi ~ 0.5 and b_L ~ B_H, then D can be ill-posed (nearly rank deficient)
     if (!check_inverse(t(D) %*% W %*% D)) {
         V_theta <- NULL
-        theta_se <- rep(NaN, length(theta_hat))
-        kappa2_se <- NaN
+        theta_b_se <- rep(NaN, 3)
+        theta_m_se <- rep(NaN, 3)
         warning("Jacobian of moment function ill-posed.")
     } else {
-
         if(is.null(z)) {
             V_meat_mat <- t(h_mat) %*% (h_mat) / n
             sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
@@ -291,37 +280,44 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         }
 
-        H_grad_vec <- t(c(
-            0, 0, 0,
-            ((b_H_hat - b_L_hat)^2*(- b_H_hat^2*p_hat^2 + 2*b_H_hat^2*p_hat - b_H_hat^2 + b_L_hat^2*p_hat^2))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
-            -(2*b_H_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2,
-            (2*b_L_hat*p_hat*(b_H_hat - b_L_hat)*(p_hat - 1)*(b_H_hat - b_H_hat*p_hat + b_L_hat*p_hat))/(b_L_hat^2*p_hat - b_H_hat^2*p_hat + b_H_hat^2)^2
-        ))
-        kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
+        theta_b_se <- sqrt(diag(V_theta))[4:6]
+
+        H_grad <- rbind(
+            c(0, 0, 0, b_L_hat - b_H_hat, p_hat, 1 - p_hat),
+            c(0, 0, 0, b_L_hat^2 - b_H_hat^2, 2 * p_hat * b_L_hat, 2 * (1 - p_hat) * b_H_hat),
+            c(0, 0, 0, b_L_hat^3 - b_H_hat^3, 3 * p_hat * b_L_hat^2, 3 * (1 - p_hat) * b_H_hat^2)
+        )
+        theta_m_se <- sqrt(diag(H_grad %*% V_theta %*% t(H_grad)))
     }
+
+    
+
+    
+
+    H_grad %*% V_theta %*% t(H_grad)
 
 
     if(is.null(z)) {
-        gamma = NULL
-        gamma_se = NULL
+        gamma_hat  <- NULL
+        gamma_se_hat <- NULL
+    } else {
+        gamma_hat <- gmm_res$init_est$ols_res$phi[-2]
+        gamma_se_hat <- gmm_res$init_est$ols_res$se[-2]
     }
 
     list(
         theta_b = theta_hat[4:6],
-        theta_m = c(Eb_1_hat, p_hat * (1 - p_hat) * (b_L_hat - b_H_hat)^2, Eb_2_hat, Eb_3_hat),
-        theta_m_gmm = theta_temp$moment_hat,
-        theta_u = theta_hat[2:3],
-        theta_se = sqrt(diag(V_theta)),
+        theta_b_se = theta_b_se,
+        theta_m = c(Eb_1_hat, Eb_2_hat, Eb_3_hat),
+        theta_m_se = theta_m_se,
+        theta_m_gmm = gmm_res$m_beta,
+        theta_m_gmm_se = gmm_res$m_beta_se,
         gamma = gamma_hat,
         gamma_se = gamma_se_hat,
         V_theta = V_theta,
-        kappa2 = Eb_1_hat^2 / Eb_2_hat,
-        kappa2_se = kappa2_se
+        gmm_res = gmm_res
     )
 }
-
-
-
 
 # ------------------------------------------------------------------------------
 # First step estimation by solving equations
@@ -436,6 +432,7 @@ moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
 #'  \item{kappa2}{estimated kappa2 (b1^2 / b2)}
 #'  \item{kappa2_se}{standard errors of kappa2}
 #'  \item{kappa2_tstat}{t-statistic of kappa2}
+#'  \item{init_est}{init_res}
 #' 
 #' @import nloptr
 #'
@@ -668,9 +665,11 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 #' @param s_max Maximum order of moments used in estimation
 #' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
+#' @param gmm_res GMM estimation results from moment_est_gmm()
 #' 
 #' @return A list contains
 #'  \item{theta_hat}{estimated (pi, b_L, b_H) based on least squares optimization }
+#'  \item{sol_status}{whether estimated var(\beta_i) > 0 and we can solve for (pi, b_L, b_H)}
 #'  \item{moment_gmm_res}{A list contains the results of GMM moment estimation}
 #' 
 #' @import nloptr
@@ -679,11 +678,13 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 #'
 #' 
 
-init_est_b <- function(x, y, z = NULL, num_start = 100, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE) {
+init_est_b <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, gmm_res = NULL) {
 
     if(!is.null(seed)) set.seed(seed)
 
-    gmm_res <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
+    if(is.null(gmm_res)) {
+        gmm_res <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
+    } 
     theta_gmm <- gmm_res$theta
 
     # first_step_est: estimated parameters only
@@ -704,6 +705,7 @@ init_est_b <- function(x, y, z = NULL, num_start = 100, s_max = 4, remove_interc
         b_H <-  (b_plus + sqrt(b_plus^2 - 4 * b_prod)) / 2
         p <- (b_H - b1) / (b_H - b_L)
         theta_hat <- c(p, b_L, b_H)
+        sol_status <-  1
     } else {
         warning("Estimated variance of beta_i is negative. A random solution is reported.")
         theta_hat <- c(
@@ -711,10 +713,12 @@ init_est_b <- function(x, y, z = NULL, num_start = 100, s_max = 4, remove_interc
             b1 - runif(1, 0.5, 1.5) * gap, 
             b1 + runif(1, 0.5, 1.5) * gap
         )
+        sol_status <-  0
     }
         
     list(
         theta_hat = theta_hat,
+        sol_status = sol_status,
         moment_gmm_res = gmm_res
     )
 }
