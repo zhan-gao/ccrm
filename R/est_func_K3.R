@@ -1,3 +1,7 @@
+# --------------------------------------------------------------------
+# Bete version of the K = 3 functions. Not fully posished and tested.
+# --------------------------------------------------------------------
+
 #' Estimation: Three categories
 #'
 #' @param x regressor (N-by-1)

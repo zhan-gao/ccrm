@@ -15,6 +15,7 @@
 #' @param s_max Maximum order of moments used in estimation
 #' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
+#' @param seed seed for random number generator
 #' 
 #' 
 #' @return A list contains estimated coefficients and inferential statistics
@@ -27,7 +28,7 @@
 #' @export
 #'
 #' 
-ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE) {
+ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, seed = 2023) {
 
     n <- length(x)
 
@@ -43,17 +44,17 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
     s3 <- min(x_supp - 1, s_max - 3)
 
     # Initial estimates
-    gmm_res <- moment_est_gmm(x, y, z, s_max, theta_init, remove_intercept, iter_gmm)
+    gmm_res <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
     if(gmm_res$kappa2 > 1) {
         cat(
             "Warning: the GMM estimate of the variance of beta is negative. \n",
-            "THe test-statistic for homogeneity is ", gmm_res$kappa2_tstat, "\n".
+            "THe test-statistic for homogeneity is ", gmm_res$kappa2_tstat, "\n",
             "The estimation will proceed, however, the results are not expected to be informative.\n"
         )
     }
-    init_est_b_res <- init_est_b(x, y, z, s_max, remove_intercept, iter_gmm, gmm_res)
+    init_est_b_res <- init_est_b(x, y, z, s_max, remove_intercept, iter_gmm, gmm_res, seed)
     if(is.null(theta_init)) {
-        theta_init <- c(gmm_res$theta_hat[1:3], init_est_b_res$theta_hat)
+        theta_init <- c(gmm_res$theta[1:3], init_est_b_res$theta)
         weight_mat <- gmm_res$weight_mat
     }
 
@@ -290,11 +291,6 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
         theta_m_se <- sqrt(diag(H_grad %*% V_theta %*% t(H_grad)))
     }
 
-    
-
-    
-
-    H_grad %*% V_theta %*% t(H_grad)
 
 
     if(is.null(z)) {
@@ -305,17 +301,19 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
         gamma_se_hat <- gmm_res$init_est$ols_res$se[-2]
     }
 
-    list(
-        theta_b = theta_hat[4:6],
-        theta_b_se = theta_b_se,
-        theta_m = c(Eb_1_hat, Eb_2_hat, Eb_3_hat),
-        theta_m_se = theta_m_se,
-        theta_m_gmm = gmm_res$m_beta,
-        theta_m_gmm_se = gmm_res$m_beta_se,
-        gamma = gamma_hat,
-        gamma_se = gamma_se_hat,
-        V_theta = V_theta,
-        gmm_res = gmm_res
+    return(
+        list(
+            theta_b = theta_hat[4:6],
+            theta_b_se = theta_b_se,
+            theta_m = c(Eb_1_hat, Eb_2_hat, Eb_3_hat),
+            theta_m_se = theta_m_se,
+            theta_m_gmm = gmm_res$m_beta,
+            theta_m_gmm_se = gmm_res$m_beta_se,
+            gamma = gamma_hat,
+            gamma_se = gamma_se_hat,
+            V_theta = V_theta,
+            gmm_res = gmm_res
+        )
     )
 }
 
@@ -517,9 +515,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
         h2 <- m[3:(s2 + 3)] * b2 + 2 * m[2:(s2 + 2)] * (a * b1) + m[1:(s2 + 1)] * (a^2 + sigma_2) - mxy2[1:(s2 + 1)]
         h3 <- m[4:(s3 + 4)] * b3 + 3 * m[3:(s3 + 3)] * b2 * a + 3 * m[2:(s3 + 2)] * b1 * (a^2 + sigma_2) +
                 m[1:(s3 + 1)] * (a^3 + 3 * a * sigma_2 + sigma_3) - mxy3[1:(s3 + 1)]
-
         c(h1, h2, h3)
-
     }
 
     jac_h_fn <- function(theta) {
@@ -666,6 +662,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 #' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
 #' @param gmm_res GMM estimation results from moment_est_gmm()
+#' @param seed seed for random number generator to control the randomly generated result
 #' 
 #' @return A list contains
 #'  \item{theta_hat}{estimated (pi, b_L, b_H) based on least squares optimization }
@@ -678,7 +675,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 #'
 #' 
 
-init_est_b <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, gmm_res = NULL) {
+init_est_b <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, gmm_res = NULL, seed = 2023) {
 
     if(!is.null(seed)) set.seed(seed)
 

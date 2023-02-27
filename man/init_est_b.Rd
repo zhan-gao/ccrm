@@ -8,10 +8,10 @@ init_est_b(
   x,
   y,
   z = NULL,
-  num_start = 100,
   s_max = 4,
   remove_intercept = TRUE,
   iter_gmm = TRUE,
+  gmm_res = NULL,
   seed = 2023
 )
 }
@@ -28,13 +28,14 @@ init_est_b(
 
 \item{iter_gmm}{Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)}
 
-\item{seed}{random seed to control the randomness of initial value generation}
+\item{gmm_res}{GMM estimation results from moment_est_gmm()}
+
+\item{seed}{seed for random number generator to control the randomly generated result}
 }
 \value{
 A list contains
 \item{theta_hat}{estimated (pi, b_L, b_H) based on least squares optimization }
-\item{theta_direct}{estimated (pi, b_L, b_H) based on direct estimation of identification conditions}
-\item{msg_optimal}{A message indicating which estimate is better in terms least square}
+\item{sol_status}{whether estimated var(\beta_i) > 0 and we can solve for (pi, b_L, b_H)}
 \item{moment_gmm_res}{A list contains the results of GMM moment estimation}
 }
 \description{

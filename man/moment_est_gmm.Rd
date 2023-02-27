@@ -37,6 +37,7 @@ A list contains
 \item{kappa2}{estimated kappa2 (b1^2 / b2)}
 \item{kappa2_se}{standard errors of kappa2}
 \item{kappa2_tstat}{t-statistic of kappa2}
+\item{init_est}{init_res}
 }
 \description{
 This function estimates the moments of beta_i using GMM. The moment conditions are
