@@ -11,7 +11,7 @@ ccrm_est_K2(
   theta_init = NULL,
   s_max = 4,
   weight_mat = NULL,
-  second_step = TRUE
+  iter_gmm = TRUE
 )
 }
 \arguments{
@@ -21,7 +21,7 @@ ccrm_est_K2(
 
 \item{theta_init}{initial value for distribution parameters}
 
-\item{second_step}{}
+\item{iter_gmm}{}
 }
 \value{
 A list contains estimated coefficients and inferential statistics

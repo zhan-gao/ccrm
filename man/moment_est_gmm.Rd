@@ -2,13 +2,43 @@
 % Please edit documentation in R/est_func_K2.R
 \name{moment_est_gmm}
 \alias{moment_est_gmm}
-\title{Estimation of moments of beta_i}
+\title{GMM Estimator of moments of beta_i, intercept and moments of u_i}
 \usage{
-moment_est_gmm(x, y, z, s_max, second_step = TRUE)
+moment_est_gmm(
+  x,
+  y,
+  z = NULL,
+  s_max = 4,
+  remove_intercept = TRUE,
+  iter_gmm = TRUE
+)
 }
 \arguments{
-\item{second_step}{}
+\item{x}{regressor (N-by-1)}
+
+\item{y}{dependent variable (N-by-p_x)}
+
+\item{z}{control variables (N-by-p_z)}
+
+\item{s_max}{Maximum order of moments used in estimation}
+
+\item{remove_intercept}{whether subtract estimated intercept term in calculation of y_tilde}
+
+\item{iter_gmm}{Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)}
+}
+\value{
+A list contains
+\item{m_beta}{estimated (b1, b2, b3)}
+\item{m_beta_se}{standard errors of m_beta}
+\item{theta}{estimated (a, sigma2, sigma3, b1, b2, b3)}
+\item{theta_se}{standard errors of theta}
+\item{V_theta}{estimated variance-covariance matrix of theta_hat}
+\item{weight_mat}{weight matrix used in estimation}
+\item{kappa2}{estimated kappa2 (b1^2 / b2)}
+\item{kappa2_se}{standard errors of kappa2}
+\item{kappa2_tstat}{t-statistic of kappa2}
 }
 \description{
-Estimation of moments of beta_i
+This function estimates the moments of beta_i using GMM. The moment conditions are
+listed in Section 3 of Gao and Pesaran (2023)
 }

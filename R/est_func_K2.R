@@ -3,14 +3,20 @@
 #   with ONE random coefficient (p_x = 1) that has TWO categories (K = 2)
 # -----------------------------------------------------------------------------
 
-#' Estimation: two categories
-#'
+#' GMM Estimator of distributional parameters of a K = 2 random coefficient model
+#' 
+#' This function estimates the distribution of beta_i using GMM. The moment conditions are
+#' listed in Section 3 of Gao and Pesaran (2023)
+#' 
 #' @param x regressor (N-by-1)
-#' @param y dependent variable (N-by-1)
-#' @param theta_init initial value for distribution parameters
-#' @param s_max
-#' @param iter_gmm
-#'
+#' @param y dependent variable (N-by-p_x)
+#' @param z control variables (N-by-p_z)
+#' @param theta_init Initial estimates of distributional parameters
+#' @param s_max Maximum order of moments used in estimation
+#' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
+#' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
+#' 
+#' 
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
 #' \item{theta_m}{Estimated moments of beta_i}
@@ -21,13 +27,20 @@
 #' @export
 #'
 #' 
-ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL, iter_gmm = TRUE) {
+ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE) {
 
     n <- length(x)
 
-    s1 <- s_max - 1
-    s2 <- s_max - 2
-    s3 <- s_max - 3
+    # Check the support of x
+    x_supp <- length(unique(x))
+    if(x_supp == 1) {
+        stop("x is homogeneous. ||Supp(x)||_0 >= 2 is required for identification.")
+    }
+
+    # Order of moments of x
+    s1 <- min(x_supp - 1, s_max - 1)
+    s2 <- min(x_supp - 1, s_max - 2)
+    s3 <- min(x_supp - 1, s_max - 3)
 
     if (is.null(theta_init)) {
         theta_temp <- init_est_b(x, y, z, s_max)
@@ -624,6 +637,10 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
         kappa2_tstat <- (kappa2 - 1) / kappa2_se
     }
 
+    if(kappa2 > 1) {
+        warning("Estimated variance of beta_i is negative...")
+    }
+
     list(
         m_beta = theta_hat[4:6],
         m_beta_se = sqrt(diag(V_theta))[4:6],
@@ -643,126 +660,61 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 # Second step estimation
 # ------------------------------------------------------------------------------
 
-init_est_b <- function(x, y, z = NULL, num_start = 100, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, seed = 2023) {
+#' Initial estimation of the distributional parameters of \eqn{\beta_i}
+#' 
+#' @param x regressor (N-by-1)
+#' @param y dependent variable (N-by-p_x)
+#' @param z control variables (N-by-p_z)
+#' @param s_max Maximum order of moments used in estimation
+#' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
+#' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
+#' 
+#' @return A list contains
+#'  \item{theta_hat}{estimated (pi, b_L, b_H) based on least squares optimization }
+#'  \item{moment_gmm_res}{A list contains the results of GMM moment estimation}
+#' 
+#' @import nloptr
+#'
+#' @export
+#'
+#' 
+
+init_est_b <- function(x, y, z = NULL, num_start = 100, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE) {
 
     if(!is.null(seed)) set.seed(seed)
 
-    moment_est_result <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
-    moment_est_result_parameter <- moment_est_result$theta
+    gmm_res <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
+    theta_gmm <- gmm_res$theta
 
     # first_step_est: estimated parameters only
     # alpha, sigma_2, Eb_1, Eb_2, b3
-    a <- moment_est_result_parameter[1]
-    sigma_2 <- moment_est_result_parameter[2]
-    sigma_3 <- moment_est_result_parameter[3]
-    b1 <- moment_est_result_parameter[4]
-    b2 <- moment_est_result_parameter[5]
-    b3 <- moment_est_result_parameter[6]
+    a <- theta_gmm[1]
+    sigma_2 <- theta_gmm[2]
+    sigma_3 <- theta_gmm[3]
+    b1 <- theta_gmm[4]
+    b2 <- theta_gmm[5]
+    b3 <- theta_gmm[6]
 
-
-    f_fn <- function(theta) {
-        f_value <- c(
-            theta[1] * theta[2] + (1 - theta[1]) * theta[3],
-            theta[1] * theta[2]^2 + (1 - theta[1]) * theta[3]^2,
-            theta[1] * theta[2]^3 + (1 - theta[1]) * theta[3]^3
-        ) - c(b1, b2, b3)
-        f_value
-    }
-    jac_f_fn <- function(theta) {
-        jac_mat <- matrix(c(
-            theta[2] - theta[3], theta[1], 1 - theta[1],
-            theta[2]^2 - theta[3]^2, 2 * theta[1] * theta[2], 2 * (1 - theta[1]) * theta[3],
-            theta[2]^3 - theta[3]^3, 3 * theta[1] * theta[2]^2, 3 * (1 - theta[1]) * theta[3]^2
-        ),
-        3, 3,
-        byrow = TRUE
+    # Estimation
+    if (b2 - b1^2 > 0) {
+        # Direct estimation based on identification conditions
+        b_plus <- (b3 - b1 * b2) / (b2 - b1^2)
+        b_prod <- (b1 * b3 - b2^2) / (b2 - b1^2)
+        b_L <- (b_plus - sqrt(b_plus^2 - 4 * b_prod)) / 2
+        b_H <-  (b_plus + sqrt(b_plus^2 - 4 * b_prod)) / 2
+        p <- (b_H - b1) / (b_H - b_L)
+        theta_hat <- c(p, b_L, b_H)
+    } else {
+        warning("Estimated variance of beta_i is negative. A random solution is reported.")
+        theta_hat <- c(
+            runif(1), 
+            b1 - runif(1, 0.5, 1.5) * gap, 
+            b1 + runif(1, 0.5, 1.5) * gap
         )
-        jac_mat
     }
-    g_fn <- function(theta) {
-        # t(f) * f
-        f_value <- f_fn(theta)
-        sum(f_value^2)
-    }
-    grad_g_fn <- function(theta) {
-        grad_g <- 2 * t(jac_f_fn(theta)) %*% f_fn(theta)
-        as.numeric(grad_g)
-    }
-
-    eval_g_ineq <- function(theta) {
-        list(
-            "constraints" = c(theta[2] - theta[3]),
-            "jacobian"= c(0, 1, -1)
-        )
-
-    }
-    
-    gap <- initial_value_gap(b1, b2)
-
-    local_opts <- list("algorithm" = "NLOPT_LD_MMA",
-                       "xtol_rel"  = 1.0e-10,
-                       "ftol_rel" = 1.0e-15)
-    opts <- list(
-        "algorithm" = "NLOPT_LD_AUGLAG",
-        "xtol_rel" = 1.0e-15,
-        "ftol_rel" = 1.0e-15,
-        "maxeval" = 1e6,
-        "local_opts" = local_opts
-    )
-
-    obj_vec <- rep(NA, num_start)
-    theta_hat_mat <- matrix(NA, num_start, 3)
-    for(r in 1:num_start) {
-        theta_start <- c(runif(1), b1 - runif(1) * gap, b1 + runif(1) * gap)
-        nlopt_sol <- nloptr::nloptr(theta_start,
-                                        eval_f = g_fn,
-                                        eval_grad_f = grad_g_fn,
-                                        lb = c(0, -Inf, -Inf),
-                                        ub = c(1, Inf, Inf),
-                                        eval_g_ineq = eval_g_ineq,
-                                        opts = opts)
-        obj_vec[r] <- nlopt_sol$objective
-        theta_hat[r, ] <- nlopt_sol$solution
-    }
-    optimal_index <- which.min(obj_vec)
-    theta_hat <- theta_hat_mat[optimal_index, ]
-    
+        
     list(
         theta_hat = theta_hat,
-        moment_hat = c(b1, b2, b3), # From GMM
-        moment_se = moment_est_result$theta_se,
-        moment_u_hat = c(a, sigma_2, sigma_3),
-        weight_mat = moment_est_result$weight_mat
-    )
-}
-
-
-#-------------------
-init_est_b_direct <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE) {
-
-    moment_est_result <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
-    moment_est_result_parameter <- moment_est_result$theta
-
-    # first_step_est: estimated parameters only
-    # alpha, sigma_2, Eb_1, Eb_2, b3
-    a <- moment_est_result_parameter[1]
-    sigma_2 <- moment_est_result_parameter[2]
-    sigma_3 <- moment_est_result_parameter[3]
-    b1 <- moment_est_result_parameter[4]
-    b2 <- moment_est_result_parameter[5]
-    b3 <- moment_est_result_parameter[6]
-
-    b_plus <- (b3 - b1 * b2) / (b2 - b1^2)
-    b_prod <- (b1 * b3 - b2^2) / (b2 - b1^2)
-    b_L <- (b_plus - sqrt(b_plus^2 - 4 * b_prod)) / 2
-    b_H <-  (b_plus + sqrt(b_plus^2 - 4 * b_prod)) / 2
-    p <- (b_H - b1) / (b_H - b_L)
-
-    list(
-        theta_hat = c(p, b_L, b_H),
-        moment_hat = c(b1, b2, b3), # From GMM
-        moment_se = moment_est_result$theta_se,
-        moment_u_hat = c(a, sigma_2, sigma_3),
-        weight_mat = moment_est_result$weight_mat
+        moment_gmm_res = gmm_res
     )
 }
