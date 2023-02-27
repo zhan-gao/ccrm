@@ -4,10 +4,10 @@
 # -----------------------------------------------------------------------------
 
 #' GMM Estimator of distributional parameters of a K = 2 random coefficient model
-#' 
+#'
 #' This function estimates the distribution of beta_i using GMM. The moment conditions are
 #' listed in Section 3 of Gao and Pesaran (2023)
-#' 
+#'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-p_x)
 #' @param z control variables (N-by-p_z)
@@ -16,8 +16,8 @@
 #' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
 #' @param seed seed for random number generator
-#' 
-#' 
+#'
+#'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
 #' \item{theta_m}{Estimated moments of beta_i}
@@ -27,7 +27,7 @@
 #'
 #' @export
 #'
-#' 
+#'
 ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, seed = 2023) {
 
     n <- length(x)
@@ -291,8 +291,6 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
         theta_m_se <- sqrt(diag(H_grad %*% V_theta %*% t(H_grad)))
     }
 
-
-
     if(is.null(z)) {
         gamma_hat  <- NULL
         gamma_se_hat <- NULL
@@ -331,7 +329,7 @@ ccrm_est_2 <- function(x, y, z = NULL, theta_init = NULL, s_max = 4, remove_inte
 #' \item{para_est}{estimated (a, sigma2, sigma3, b1, b2, b3) }
 #' \item{remove_intercept}{Save the parameter remove_intercept for future reference. = NA if z is not provided.}
 #'
-#' 
+#'
 moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
 
     if (!is.null(z)) {
@@ -409,17 +407,17 @@ moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
 # ------------------------------------------------------------------------------
 
 #' GMM Estimator of moments of beta_i, intercept and moments of u_i
-#' 
+#'
 #' This function estimates the moments of beta_i using GMM. The moment conditions are
 #' listed in Section 3 of Gao and Pesaran (2023)
-#' 
+#'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-p_x)
 #' @param z control variables (N-by-p_z)
 #' @param s_max Maximum order of moments used in estimation
 #' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
-#' 
+#'
 #' @return A list contains
 #'  \item{m_beta}{estimated (b1, b2, b3)}
 #'  \item{m_beta_se}{standard errors of m_beta}
@@ -431,7 +429,7 @@ moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
 #'  \item{kappa2_se}{standard errors of kappa2}
 #'  \item{kappa2_tstat}{t-statistic of kappa2}
 #'  \item{init_est}{init_res}
-#' 
+#'
 #' @import nloptr
 #'
 #' @export
@@ -623,7 +621,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 
         kappa2 <- theta_hat[4]^2 / theta_hat[5]
         H_grad_vec <- t(c(
-            0, 0, 0, 
+            0, 0, 0,
             2 * theta_hat[4] / theta_hat[5], - (theta_hat[4]^2) / (theta_hat[5]^2), 0
         ))
         kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
@@ -654,7 +652,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 # ------------------------------------------------------------------------------
 
 #' Initial estimation of the distributional parameters of \eqn{\beta_i}
-#' 
+#'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-p_x)
 #' @param z control variables (N-by-p_z)
@@ -663,17 +661,17 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
 #' @param gmm_res GMM estimation results from moment_est_gmm()
 #' @param seed seed for random number generator to control the randomly generated result
-#' 
+#'
 #' @return A list contains
 #'  \item{theta_hat}{estimated (pi, b_L, b_H) based on least squares optimization }
 #'  \item{sol_status}{whether estimated var(\beta_i) > 0 and we can solve for (pi, b_L, b_H)}
 #'  \item{moment_gmm_res}{A list contains the results of GMM moment estimation}
-#' 
+#'
 #' @import nloptr
 #'
 #' @export
 #'
-#' 
+#'
 
 init_est_b <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, gmm_res = NULL, seed = 2023) {
 
@@ -681,7 +679,7 @@ init_est_b <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_
 
     if(is.null(gmm_res)) {
         gmm_res <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
-    } 
+    }
     theta_gmm <- gmm_res$theta
 
     # first_step_est: estimated parameters only
@@ -706,13 +704,13 @@ init_est_b <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_
     } else {
         warning("Estimated variance of beta_i is negative. A random solution is reported.")
         theta_hat <- c(
-            runif(1), 
-            b1 - runif(1, 0.5, 1.5) * gap, 
+            runif(1),
+            b1 - runif(1, 0.5, 1.5) * gap,
             b1 + runif(1, 0.5, 1.5) * gap
         )
         sol_status <-  0
     }
-        
+
     list(
         theta_hat = theta_hat,
         sol_status = sol_status,
