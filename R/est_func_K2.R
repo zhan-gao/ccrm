@@ -1,10 +1,15 @@
+# -----------------------------------------------------------------------------
+# Estimation of categorical coefficient regression models
+#   with ONE random coefficient (p_x = 1) that has TWO categories (K = 2)
+# -----------------------------------------------------------------------------
+
 #' Estimation: two categories
 #'
 #' @param x regressor (N-by-1)
 #' @param y dependent variable (N-by-1)
 #' @param theta_init initial value for distribution parameters
 #' @param s_max
-#' @param second_step
+#' @param iter_gmm
 #'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
@@ -16,7 +21,7 @@
 #' @export
 #'
 #'
-ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL, second_step = TRUE) {
+ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL, iter_gmm = TRUE) {
 
     n <- length(x)
 
@@ -219,7 +224,7 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
     theta_hat <- nlopt_sol$solution
 
     # Two-step GMM
-    if(second_step) {
+    if(iter_gmm) {
         h_mat <- h_moment_mat_fn(theta_hat)
         h_mean <- colMeans(h_mat)
         W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
@@ -313,14 +318,16 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
 #'
 #' @return A list contains
 #' \item{para_est}{estimated (a, sigma2, sigma3, b1, b2, b3) }
-#' \item{remove_intecept}{Save the parameter remove_intercept for future reference. = NA if z is not provided.}
+#' \item{remove_intercept}{Save the parameter remove_intercept for future reference. = NA if z is not provided.}
 #'
+#' 
 moment_est <- function(x, y, z = NULL, remove_intercept = TRUE) {
 
     if (!is.null(z)) {
-        y <- ols_est(x, y, z, remove_intercept)$y_tilde
+        ols_res <- ols_est(x, y, z, remove_intercept)
+        y <- ols_res$y_tilde
     } else {
-        remove_intercept = NA
+        ols_res <- NULL
     }
 
     m1 <- mean(x)
@@ -335,14 +342,19 @@ moment_est <- function(x, y, z = NULL, remove_intercept = TRUE) {
     my3x1 <- mean(x^1 * y^3)
 
     # First Moment
-    a_mat <- matrix(c(
-        1, m1,
-        m1, m2
-    ), 2, 2, byrow = TRUE)
-    b_vec <- c(my1, my1x1)
-    res_temp <- solve(a_mat, b_vec)
-    a <- res_temp[1]
-    b1 <- res_temp[2]
+    if (!is.null(z)) {
+        a <- ols_res$phi[1]
+        b1 <- ols_res$phi[2]
+    } else {
+        a_mat <- matrix(c(
+            1, m1,
+            m1, m2
+        ), 2, 2, byrow = TRUE)
+        b_vec <- c(my1, my1x1)
+        res_temp <- solve(a_mat, b_vec)
+        a <- res_temp[1]
+        b1 <- res_temp[2]
+    }
 
     # Second Moment
     a_mat <- matrix(c(
@@ -375,28 +387,43 @@ moment_est <- function(x, y, z = NULL, remove_intercept = TRUE) {
 
     list(
         para_est = c(a, sigma_2, sigma_3, b1, b2, b3),
-        remove_intercept = remove_intercept
+        ols_res = ols_res
     )
 }
 
-# ----------First step estimation GMM----------
+# ------------------------------------------------------------------------------
+# GMM Estimation of moments of beta_i
+# ------------------------------------------------------------------------------
 
-#' Estimation of moments of beta_i
-#'
-#' @param x
-#' @param y
-#' @param z
-#' @param s_max
-#' @param second_step
+#' GMM Estimator of moments of beta_i, intercept and moments of u_i
+#' 
+#' This function estimates the moments of beta_i using GMM. The moment conditions are
+#' listed in Section 3 of Gao and Pesaran (2023)
+#' 
+#' @param x regressor (N-by-1)
+#' @param y dependent variable (N-by-p_x)
+#' @param z control variables (N-by-p_z)
+#' @param s_max Maximum order of moments used in estimation
+#' @param remove_intercept whether subtract estimated intercept term in calculation of y_tilde
+#' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
+#' 
+#' @return A list contains
+#'  \item{theta_b}{estimated (b1, b2, b3)}
+#' 
+#' @import nloptr
 #'
 #' @export
 #'
-moment_est_gmm <- function(x, y, z, s_max, second_step = TRUE) {
+moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE) {
 
-    # with intercept, over-identification, GMM framework
 
+    # sample size
     n <- length(x)
 
+    # Check the support of x
+    x_supp <- length(unique(x))
+
+    # Order of moments of x
     s1 <- s_max - 1
     s2 <- s_max - 2
     s3 <- s_max - 3
@@ -404,25 +431,8 @@ moment_est_gmm <- function(x, y, z, s_max, second_step = TRUE) {
 
     # OLS estimate and replace gamma by gamma_hat
     if (!is.null(z)) {
-
-        # OLS
-        w <- cbind(1, x, z)
-        phi_hat <- solve(t(w) %*% w, t(w) %*% y)
-        # Residuals
-        xi_hat <- c(y - w %*% phi_hat)
-        # Variance and s.e.
-        Q_ww <- (t(w) %*% w) / n
-        D_hat <- Matrix::Diagonal(n)
-        diag(D_hat) <- xi_hat^2
-        V_wxi <- (t(w) %*% D_hat %*% w) / n
-        V_hat <- (solve(Q_ww) %*% V_wxi %*% solve(Q_ww)) / n
-        se_hat <- sqrt(Matrix::diag(V_hat))
-
-        gamma_hat <- phi_hat[-(1:2)]
-        y <- y - c(z %*% gamma_hat)
-
-        gamma_hat <- phi_hat[-2]
-        gamma_se_hat <- se_hat[-2]
+        ols_res <- ols_est(x, y, z, remove_intercept)
+        y <- ols_res$y_tilde
     }
 
     # construct x matrix and xy matrix with different order
@@ -480,7 +490,6 @@ moment_est_gmm <- function(x, y, z, s_max, second_step = TRUE) {
 
     }
 
-
     jac_h_fn <- function(theta) {
 
          # theta = (alpha, sigma^2, E(u_i^3) b1, b2, b3)
@@ -512,8 +521,6 @@ moment_est_gmm <- function(x, y, z, s_max, second_step = TRUE) {
             )
         )
     }
-
-
 
     # Estimate the weighting matrix
     theta_init <- moment_est(x, y)
@@ -547,7 +554,7 @@ moment_est_gmm <- function(x, y, z, s_max, second_step = TRUE) {
     theta_hat <- nlopt_sol$solution
 
     # Two-step GMM
-    if(second_step) {
+    if(iter_gmm) {
         h_mat <- h_moment_mat_fn(theta_hat)
         h_mean <- colMeans(h_mat)
         W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
