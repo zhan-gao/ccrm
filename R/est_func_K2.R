@@ -20,7 +20,7 @@
 #'
 #' @export
 #'
-#'
+#' 
 ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL, iter_gmm = TRUE) {
 
     n <- length(x)
@@ -306,6 +306,10 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
         kappa2_se = kappa2_se
     )
 }
+
+
+
+
 # ------------------------------------------------------------------------------
 # First step estimation by solving equations
 # ------------------------------------------------------------------------------
@@ -343,7 +347,7 @@ moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
 
     # First Moment
     if (!is.null(z)) {
-        a <- ols_res$phi[1]
+        a <- ifelse(remove_intercept, 0, ols_res$phi[1])
         b1 <- ols_res$phi[2]
     } else {
         a_mat <- matrix(c(
@@ -391,6 +395,8 @@ moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
     )
 }
 
+
+
 # ------------------------------------------------------------------------------
 # GMM Estimation of moments of beta_i
 # ------------------------------------------------------------------------------
@@ -408,7 +414,15 @@ moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
 #' 
 #' @return A list contains
-#'  \item{theta_b}{estimated (b1, b2, b3)}
+#'  \item{m_beta}{estimated (b1, b2, b3)}
+#'  \item{m_beta_se}{standard errors of m_beta}
+#'  \item{theta}{estimated (a, sigma2, sigma3, b1, b2, b3)}
+#'  \item{theta_se}{standard errors of theta}
+#'  \item{V_theta}{estimated variance-covariance matrix of theta_hat}
+#'  \item{weight_mat}{weight matrix used in estimation}
+#'  \item{kappa2}{estimated kappa2 (b1^2 / b2)}
+#'  \item{kappa2_se}{standard errors of kappa2}
+#'  \item{kappa2_tstat}{t-statistic of kappa2}
 #' 
 #' @import nloptr
 #'
@@ -422,19 +436,26 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 
     # Check the support of x
     x_supp <- length(unique(x))
+    if(x_supp == 1) {
+        stop("x is homogeneous. ||Supp(x)||_0 >= 2 is required for identification.")
+    }
 
     # Order of moments of x
-    s1 <- s_max - 1
-    s2 <- s_max - 2
-    s3 <- s_max - 3
-
+    s1 <- min(x_supp - 1, s_max - 1)
+    s2 <- min(x_supp - 1, s_max - 2)
+    s3 <- min(x_supp - 1, s_max - 3)
 
     # OLS estimate and replace gamma by gamma_hat
     if (!is.null(z)) {
-
-        ols_res <- ols_est(x, y, z, remove_intercept)
-        y <- ols_res$y_tilde
+        init_res <- moment_est_init(x, y, z, remove_intercept)
+        y <- init_res$ols_res$y_tilde
+        xi_hat <- init_res$ols_res$xi
+        w <- cbind(1, x, z)
+        Q_ww <- t(w) %*% w / n
+    } else {
+        init_res <- moment_est_init(x, y)
     }
+    theta_init <- init_res$para_est
 
     # construct x matrix and xy matrix with different order
     x_mat <- sapply(0:s_max, function(i) {
@@ -524,7 +545,6 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
     }
 
     # Estimate the weighting matrix
-    theta_init <- moment_est(x, y)
     h_mat <- h_moment_mat_fn(theta_init)
     h_mean <- colMeans(h_mat)
     W <- solve((t(h_mat) %*% h_mat / n) - (h_mean %*% t(h_mean)))
@@ -539,8 +559,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
         c(2 * t(jac_h_fn(theta)) %*% W %*% h_fn_value)
     }
 
-
-    # OPTIMIZATION
+    # Optimization
     opts <- list(
         "algorithm" = "NLOPT_LD_LBFGS",
         "xtol_rel" = 1.0e-8
@@ -581,7 +600,6 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
         V_theta <- NULL
         warning("Jacobian of moment function ill-posed.")
     } else {
-
         if(is.null(z)) {
             V_meat_mat <- t(h_mat) %*% (h_mat) / n
             sandwich_left <- solve(t(D) %*% W %*% D) %*% t(D) %*% W
@@ -597,30 +615,39 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
             V_theta <- sandwich_left %*% V_meat_mat %*% t(sandwich_left) / n
         }
 
-        kappa2 <- theta_hat[5] - theta_hat[4]^2
-        H_grad_vec <- t(c(0, 0, 0, -2 * theta_hat[4], 1, 0))
+        kappa2 <- theta_hat[4]^2 / theta_hat[5]
+        H_grad_vec <- t(c(
+            0, 0, 0, 
+            2 * theta_hat[4] / theta_hat[5], - (theta_hat[4]^2) / (theta_hat[5]^2), 0
+        ))
         kappa2_se <- c(sqrt(H_grad_vec %*% V_theta %*% t(H_grad_vec)))
+        kappa2_tstat <- (kappa2 - 1) / kappa2_se
     }
 
-
-
     list(
+        m_beta = theta_hat[4:6],
+        m_beta_se = sqrt(diag(V_theta))[4:6],
         theta = theta_hat,
         theta_se = sqrt(diag(V_theta)),
         V_theta = V_theta,
         weight_mat = W,
         kappa2 = kappa2,
-        kappa2_se = kappa2_se
+        kappa2_se = kappa2_se,
+        kappa2_tstat = kappa2_tstat,
+        init_est = init_res
     )
 }
 
-# ----------Second step estimation----------
-init_est_b <- function(x,
-                       y,
-                       z,
-                       s_max) {
 
-    moment_est_result <- moment_est_gmm(x, y, z, s_max)
+# ------------------------------------------------------------------------------
+# Second step estimation
+# ------------------------------------------------------------------------------
+
+init_est_b <- function(x, y, z = NULL, num_start = 100, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE, seed = 2023) {
+
+    if(!is.null(seed)) set.seed(seed)
+
+    moment_est_result <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
     moment_est_result_parameter <- moment_est_result$theta
 
     # first_step_est: estimated parameters only
@@ -662,9 +689,6 @@ init_est_b <- function(x,
         as.numeric(grad_g)
     }
 
-    gap <- initial_value_gap(b1, b2)
-    theta_start <- c(0.5, b1 - gap, b1 + gap)
-
     eval_g_ineq <- function(theta) {
         list(
             "constraints" = c(theta[2] - theta[3]),
@@ -672,11 +696,9 @@ init_est_b <- function(x,
         )
 
     }
+    
+    gap <- initial_value_gap(b1, b2)
 
-    # opts <- list(
-    #     "algorithm" = "NLOPT_LD_LBFGS",
-    #     "xtol_rel" = 1.0e-8
-    # )
     local_opts <- list("algorithm" = "NLOPT_LD_MMA",
                        "xtol_rel"  = 1.0e-10,
                        "ftol_rel" = 1.0e-15)
@@ -687,35 +709,24 @@ init_est_b <- function(x,
         "maxeval" = 1e6,
         "local_opts" = local_opts
     )
-    nlopt_sol <- nloptr::nloptr(theta_start,
-                                eval_f = g_fn,
-                                eval_grad_f = grad_g_fn,
-                                lb = c(0, -Inf, -Inf),
-                                ub = c(1, Inf, Inf),
-                                eval_g_ineq = eval_g_ineq,
-                                opts = opts
-    )
-    theta_hat <- nlopt_sol$solution
 
-    #
-    # p_seq <- seq(0.05, 0.95, 0.01)
-    # num_p <- length(p_seq)
-    # obj_vec <- rep(NA, num_p)
-    # for (i in 1:num_p) {
-    #     theta_start[1] <- p_seq[i]
-    #     nlopt_sol <- nloptr::nloptr(theta_start,
-    #                                 eval_f = g_fn,
-    #                                 eval_grad_f = grad_g_fn,
-    #                                 lb = c(0, -Inf, -Inf),
-    #                                 ub = c(1, Inf, Inf),
-    #                                 eval_g_ineq = eval_g_ineq,
-    #                                 opts = opts
-    #     )
-    #     obj_vec[i] <- nlopt_sol$objective
-    # }
-    # print(p_seq[which.min(obj_vec)])
-    # print(obj_vec[which.min(obj_vec)])
-
+    obj_vec <- rep(NA, num_start)
+    theta_hat_mat <- matrix(NA, num_start, 3)
+    for(r in 1:num_start) {
+        theta_start <- c(runif(1), b1 - runif(1) * gap, b1 + runif(1) * gap)
+        nlopt_sol <- nloptr::nloptr(theta_start,
+                                        eval_f = g_fn,
+                                        eval_grad_f = grad_g_fn,
+                                        lb = c(0, -Inf, -Inf),
+                                        ub = c(1, Inf, Inf),
+                                        eval_g_ineq = eval_g_ineq,
+                                        opts = opts)
+        obj_vec[r] <- nlopt_sol$objective
+        theta_hat[r, ] <- nlopt_sol$solution
+    }
+    optimal_index <- which.min(obj_vec)
+    theta_hat <- theta_hat_mat[optimal_index, ]
+    
     list(
         theta_hat = theta_hat,
         moment_hat = c(b1, b2, b3), # From GMM
@@ -724,13 +735,12 @@ init_est_b <- function(x,
         weight_mat = moment_est_result$weight_mat
     )
 }
-#-------------------
-init_est_b_direct <- function(x,
-                       y,
-                       z,
-                       s_max) {
 
-    moment_est_result <- moment_est_gmm(x, y, z, s_max)
+
+#-------------------
+init_est_b_direct <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_gmm = TRUE) {
+
+    moment_est_result <- moment_est_gmm(x, y, z, s_max, remove_intercept, iter_gmm)
     moment_est_result_parameter <- moment_est_result$theta
 
     # first_step_est: estimated parameters only

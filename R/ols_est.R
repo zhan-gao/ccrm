@@ -28,7 +28,7 @@ ols_est <- function(x, y, z, remove_intercept = TRUE) {
     w <- cbind(1, x, z)
     phi_hat <- solve(t(w) %*% w, t(w) %*% y)
     # Residuals
-    xi_hat <- y - w %*% phi_hat
+    xi_hat <- c(y - w %*% phi_hat)
     # Variance and s.e.
     Q_ww <- (t(w) %*% w) / n
     D_hat <- Matrix::Diagonal(n)
