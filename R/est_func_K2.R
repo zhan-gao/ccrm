@@ -321,7 +321,7 @@ ccrm_est_K2 <- function(x, y, z, theta_init = NULL, s_max = 4, weight_mat = NULL
 #' \item{remove_intercept}{Save the parameter remove_intercept for future reference. = NA if z is not provided.}
 #'
 #' 
-moment_est <- function(x, y, z = NULL, remove_intercept = TRUE) {
+moment_est_init <- function(x, y, z = NULL, remove_intercept = TRUE) {
 
     if (!is.null(z)) {
         ols_res <- ols_est(x, y, z, remove_intercept)
@@ -431,6 +431,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
 
     # OLS estimate and replace gamma by gamma_hat
     if (!is.null(z)) {
+
         ols_res <- ols_est(x, y, z, remove_intercept)
         y <- ols_res$y_tilde
     }
