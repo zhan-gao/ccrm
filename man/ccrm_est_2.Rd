@@ -35,10 +35,15 @@ ccrm_est_2(
 \value{
 A list contains estimated coefficients and inferential statistics
 \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
-\item{theta_m}{Estimated moments of beta_i}
-\item{theta_u}{Estimated moments of u_i}
+\item{theta_b_se}{s.e. of Estimated distributional parameter p, b_L, b_H}
+\item{theta_m}
+\item{theta_m_se}{s.e. of estimated moments of beta_i}
+\item{theta_m_gmm}{Estimated moments of beta_i from gmm}
+\item{theta_m_gmm_se}{s.e. estimated moments of beta_i from gmm}
 \item{gamma}{estimated coefficients of control varibles, including intercept}
+\item{gamma_se}{s.e. estimated coefficients of control varibles, including intercept}
 \item{V_theta}{variance}
+\item{gmm_res}{GMM estimation of moments output object}
 }
 \description{
 This function estimates the distribution of beta_i using GMM. The moment conditions are

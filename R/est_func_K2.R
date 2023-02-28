@@ -17,13 +17,17 @@
 #' @param iter_gmm Whether to use iterative GMM (If FALSE, use OW-GMM with initial estimates)
 #' @param seed seed for random number generator
 #'
-#'
 #' @return A list contains estimated coefficients and inferential statistics
 #' \item{theta_b}{Estimated distributional parameter p, b_L, b_H}
-#' \item{theta_m}{Estimated moments of beta_i}
-#' \item{theta_u}{Estimated moments of u_i}
+#' \item{theta_b_se}{s.e. of Estimated distributional parameter p, b_L, b_H}
+#' \item{theta_m}
+#' \item{theta_m_se}{s.e. of estimated moments of beta_i}
+#' \item{theta_m_gmm}{Estimated moments of beta_i from gmm}
+#' \item{theta_m_gmm_se}{s.e. estimated moments of beta_i from gmm}
 #' \item{gamma}{estimated coefficients of control varibles, including intercept}
+#' \item{gamma_se}{s.e. estimated coefficients of control varibles, including intercept}
 #' \item{V_theta}{variance}
+#' \item{gmm_res}{GMM estimation of moments output object}
 #'
 #' @export
 #'
@@ -564,15 +568,34 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
     }
 
     # Optimization
+
+    # opts <- list(
+    #     "algorithm" = "NLOPT_LD_LBFGS",
+    #     "xtol_rel" = 1.0e-8
+    # )
+
+    eval_g_ineq <- function(theta) {
+        list(
+            "constraints" = c(theta[4]^2 - theta[5]),
+            "jacobian"= c(0, 0, 0, 0, 2 * theta[4], -1)
+        )
+    }
+
+    local_opts <- list("algorithm" = "NLOPT_LD_MMA",
+                       "xtol_rel"  = 1.0e-10)
     opts <- list(
-        "algorithm" = "NLOPT_LD_LBFGS",
-        "xtol_rel" = 1.0e-8
+        "algorithm" = "NLOPT_LD_AUGLAG",
+        "xtol_rel" = 1.0e-15,
+        "maxeval" = 1e6,
+        "local_opts" = local_opts
     )
+
     nlopt_sol <- nloptr::nloptr(theta_init,
                                 eval_f = q_fn,
                                 eval_grad_f = grad_q_fn,
                                 lb = c(-Inf, 0, -Inf, -Inf, 0, -Inf),
                                 ub = c(Inf, Inf, Inf, Inf, Inf, Inf),
+                                eval_g_ineq = eval_g_ineq,
                                 opts = opts
     )
     theta_hat <- nlopt_sol$solution
@@ -587,6 +610,7 @@ moment_est_gmm <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, i
                                 eval_grad_f = grad_q_fn,
                                 lb = c(-Inf, 0, -Inf, -Inf, 0, -Inf),
                                 ub = c(Inf, Inf, Inf, Inf, Inf, Inf),
+                                eval_g_ineq = eval_g_ineq,
                                 opts = opts
         )
         theta_hat <- nlopt_sol$solution
@@ -705,8 +729,8 @@ init_est_b <- function(x, y, z = NULL, s_max = 4, remove_intercept = TRUE, iter_
         warning("Estimated variance of beta_i is negative. A random solution is reported.")
         theta_hat <- c(
             runif(1),
-            b1 - runif(1, 0.5, 1.5) * gap,
-            b1 + runif(1, 0.5, 1.5) * gap
+            b1 - runif(1, 0.5, 1.5),
+            b1 + runif(1, 0.5, 1.5)
         )
         sol_status <-  0
     }
