@@ -6,7 +6,7 @@ Companion R package for
 
 - Link to the draft: [*Published Version*](https://link.springer.com/article/10.1007/s00181-023-02402-0) / [*arXiv: 2303.14380*](https://arxiv.org/abs/2302.14380).
 
-- For a quick preview of the paper, please see the poster and slides in this repository.
+- For a quick preview of the paper, please see the [poster](https://github.com/zhan-gao/ccrm/blob/main/ccrm_poster.pdf) and [slides](https://github.com/zhan-gao/ccrm/blob/main/ccrm_slides.pdf) in this repository.
 
 - CAVEAT: The package are in a very preliminary stage and subject to revising. Please use at your own risk.
 
